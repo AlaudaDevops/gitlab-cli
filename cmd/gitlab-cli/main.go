@@ -7,8 +7,8 @@ import (
 	"gitlab-cli-sdk/internal/config"
 )
 
-// Version 应用程序版本号
-const Version = "0.2.0"
+// Version 应用程序版本号，通过编译时 -ldflags 注入
+var Version = "dev"
 
 func main() {
 	cfg := &config.CLIConfig{}
