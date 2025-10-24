@@ -13,10 +13,10 @@ import (
 // BuildRootCommand 构建根命令
 func BuildRootCommand(cfg *config.CLIConfig, version string) *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:     "gitlab-cli-sdk",
+		Use:     "gitlab-cli",
 		Short:   "GitLab 用户和项目自动化管理工具（使用 GitLab Go SDK）",
 		Version: version,
-		Long: `GitLab CLI SDK 是基于官方 GitLab Go SDK 的用户和项目自动化管理工具。
+		Long: `GitLab CLI 是基于官方 GitLab Go SDK 的用户和项目自动化管理工具。
 它通过 YAML 配置文件批量创建和管理 GitLab 用户、组和项目。
 
 特性：
