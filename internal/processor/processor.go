@@ -152,29 +152,6 @@ func (p *ResourceProcessor) createGroupsWithOutput(username string, groups []typ
 	return groupOutputs, nil
 }
 
-// createGroups 创建多个组及其项目
-func (p *ResourceProcessor) createGroups(username string, groups []types.GroupSpec) error {
-	for j, groupSpec := range groups {
-		log.Printf("  ------------------------------------------\n")
-		log.Printf("  处理组 [%d/%d]: %s\n", j+1, len(groups), groupSpec.Name)
-
-		groupID, groupPath, err := p.ensureGroup(username, groupSpec)
-		if err != nil {
-			log.Printf("    ⚠ 创建组失败 %s: %v\n", groupSpec.Path, err)
-			continue
-		}
-
-		// 创建组下的项目
-		if len(groupSpec.Projects) > 0 {
-			log.Printf("    创建 %d 个项目...\n", len(groupSpec.Projects))
-			if err := p.createProjects(username, groupID, groupPath, groupSpec.Projects); err != nil {
-				log.Printf("    ⚠ 创建项目失败: %v\n", err)
-			}
-		}
-	}
-	return nil
-}
-
 // ensureGroup 确保组存在，如果不存在则创建
 func (p *ResourceProcessor) ensureGroup(username string, groupSpec types.GroupSpec) (int, string, error) {
 	existingGroup, _ := p.Client.GetGroup(groupSpec.Path)
@@ -243,36 +220,6 @@ func (p *ResourceProcessor) createProjectsWithOutput(username string, groupID in
 		})
 	}
 	return projectOutputs, nil
-}
-
-// createProjects 创建多个项目
-func (p *ResourceProcessor) createProjects(username string, groupID int, groupPath string, projects []types.ProjectSpec) error {
-	for _, projSpec := range projects {
-		fullPath := fmt.Sprintf("%s/%s", groupPath, projSpec.Path)
-		existingProj, _ := p.Client.GetProject(fullPath)
-
-		if existingProj != nil {
-			log.Printf("      ⚠ 项目 '%s' 已存在 (ID: %d)\n", projSpec.Name, existingProj.ID)
-			continue
-		}
-
-		log.Printf("      创建项目: %s\n", projSpec.Name)
-		project, err := p.Client.CreateProject(
-			username,
-			groupID,
-			projSpec.Name,
-			projSpec.Path,
-			projSpec.Description,
-			utils.GetVisibility(projSpec.Visibility),
-		)
-		if err != nil {
-			log.Printf("      ⚠ 创建项目失败 %s: %v\n", projSpec.Name, err)
-			continue
-		}
-
-		log.Printf("      ✓ 项目创建成功 (ID: %d, Path: %s)\n", project.ID, project.PathWithNamespace)
-	}
-	return nil
 }
 
 // ========================================
