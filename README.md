@@ -7,8 +7,10 @@ GitLab 用户和项目自动化管理工具，基于官方 GitLab Go SDK 开发�
 - ✅ **官方 SDK**: 使用 GitLab 官方 Go SDK (`gitlab.com/gitlab-org/api/client-go`)
 - ✅ **纯 Go 实现**: 无需外部依赖，类型安全的 API 调用
 - ✅ **批量管理**: 支持批量创建和管理 GitLab 用户、组和项目
-- ✅ **Token 管理**: 自动创建 Personal Access Token，支持自定义权限和过期时间
-- ✅ **灵活输出**: 支持默认 YAML 格式和自定义模板输出
+- ✅ **Token 自动创建**: 为用户自动创建 Personal Access Token，支持自定义权限和过期时间
+- ✅ **智能默认值**: Token 过期时间默认为第2天（从当天算起）
+- ✅ **灵活输出**: 支持默认 YAML 格式和自定义 Go Template 模板输出
+- ✅ **完整结果**: 输出包含 Token 值、用户 ID、组 ID、项目 ID、Web URL 等完整信息
 - ✅ **模块化设计**: 易于维护和扩展
 
 ## 🚀 快速开始
@@ -74,9 +76,9 @@ export GITLAB_TOKEN=your-personal-access-token
 ```yaml
 # test-users.yaml
 users:
-  - username: testuser
-    email: testuser@example.com
-    name: Test User
+  - username: tektoncd
+    email: tektoncd001@test.example.com
+    name: tektoncd-test
     password: "MyStr0ng!Pass2024"
 
     # Personal Access Token 配置（可选）
@@ -86,17 +88,35 @@ users:
         - read_user
         - read_repository
         - write_repository
-      expires_at: 2026-01-01  # 可选，不指定则默认为第2天
+        - read_api
+        - create_runner
+      # expires_at: 2026-01-01  # 可选，不指定则默认为第2天
 
     # 组和项目配置
     groups:
-      - name: my-group
-        path: my-group
+      - name: tektoncd-frontend-group
+        path: tektoncd-frontend-group
         visibility: private
         projects:
-          - name: my-project
-            path: my-project
-            description: 我的项目
+          - name: test-e2e-demo
+            path: test-e2e-demo
+            description: 测试前端应用
+            visibility: private
+          - name: test-vue-app
+            path: test-vue-app
+            description: Vue.js 测试应用
+            visibility: private
+      - name: tektoncd-backend-group
+        path: tektoncd-backend-group
+        visibility: private
+        projects:
+          - name: test-java
+            path: test-java-e2e-demo
+            description: 测试后端 API
+            visibility: public
+          - name: test-go-api
+            path: test-go-api
+            description: Go API 服务
             visibility: private
 ```
 
@@ -115,21 +135,34 @@ users:
 #### 过期时间
 
 - **指定过期时间**: `expires_at: 2026-01-01` (格式: YYYY-MM-DD)
-- **不指定**: 自动设置为第2天过期（从今天算起）
+- **不指定**: 自动设置为第2天过期（从当天算起，即今天 + 2 天）
 
+**示例**:
 ```yaml
-# 示例 1: 指定过期时间
+# 方式 1: 指定过期时间
 token:
   scope:
     - api
   expires_at: 2026-01-01
 
-# 示例 2: 使用默认过期时间（第2天）
+# 方式 2: 使用默认过期时间（第2天）
 token:
   scope:
     - api
-  # 不指定 expires_at，自动设为第2天
+  # 不指定 expires_at，系统自动设为第2天
+
+# 方式 3: 注释掉 expires_at（推荐用于测试）
+token:
+  scope:
+    - api
+    - read_user
+  # expires_at: 2026-01-01  # 注释掉则使用默认值
 ```
+
+**默认过期时间说明**:
+- 如果今天是 2025-10-27，默认过期时间为 2025-10-29
+- Token 会在过期时间当天结束时失效
+- 日志会显示: `未指定过期时间，使用默认值: 2025-10-29 (第2天)`
 
 ## 📤 输出功能
 
@@ -143,31 +176,62 @@ token:
 
 ```yaml
 users:
-  - username: testuser
-    email: testuser@example.com
-    name: Test User
-    user_id: 123
+  - username: tektoncd
+    email: tektoncd001@test.example.com
+    name: tektoncd-test
+    user_id: 24
     token:
-      value: glpat-xxxxxxxxxxxxxxxxxxxx
+      value: glpat-TXLgrsMwyVt5obFqkDny
       scope:
         - api
         - read_user
-      expires_at: "2026-01-01"
+        - read_repository
+        - write_repository
+        - read_api
+        - create_runner
+      expires_at: "2025-10-29"
     groups:
-      - name: my-group
-        path: my-group
-        group_id: 456
+      - name: tektoncd-frontend-group
+        path: tektoncd-frontend-group
+        group_id: 1506
         visibility: private
         projects:
-          - name: my-project
-            path: my-group/my-project
-            project_id: 789
-            web_url: https://gitlab.com/my-group/my-project
+          - name: test-e2e-demo
+            path: tektoncd-frontend-group/test-e2e-demo
+            project_id: 1434
+            description: 测试前端应用
+            visibility: private
+            web_url: https://devops-gitlab.alaudatech.net/tektoncd-frontend-group/test-e2e-demo
+          - name: test-vue-app
+            path: tektoncd-frontend-group/test-vue-app
+            project_id: 1435
+            description: Vue.js 测试应用
+            visibility: private
+            web_url: https://devops-gitlab.alaudatech.net/tektoncd-frontend-group/test-vue-app
+      - name: tektoncd-backend-group
+        path: tektoncd-backend-group
+        group_id: 1507
+        visibility: private
+        projects:
+          - name: test-java
+            path: tektoncd-backend-group/test-java-e2e-demo
+            project_id: 1436
+            description: 测试后端 API
+            visibility: public
+            web_url: https://devops-gitlab.alaudatech.net/tektoncd-backend-group/test-java-e2e-demo
+          - name: test-go-api
+            path: tektoncd-backend-group/test-go-api
+            project_id: 1437
+            description: Go API 服务
+            visibility: private
+            web_url: https://devops-gitlab.alaudatech.net/tektoncd-backend-group/test-go-api
 ```
 
 ### 自定义模板输出
 
-创建模板文件 `template.yaml`：
+项目提供了模板示例文件 **template-example.yaml**，展示了如何使用 Go template 语法自定义输出格式。
+
+使用模板：
 
 ```yaml
 # 使用 Go template 语法
