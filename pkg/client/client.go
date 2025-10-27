@@ -184,3 +184,26 @@ func (c *GitLabClient) DeleteUser(userID int) error {
 	_, err := c.client.Users.DeleteUser(userID)
 	return err
 }
+
+// CreatePersonalAccessToken 为用户创建 Personal Access Token
+func (c *GitLabClient) CreatePersonalAccessToken(userID int, name string, scopes []string, expiresAt string) (string, error) {
+	// 将字符串日期转换为 ISOTime 类型
+	isoTime, err := gitlab.ParseISOTime(expiresAt)
+	if err != nil {
+		return "", fmt.Errorf("invalid date format (expected YYYY-MM-DD): %w", err)
+	}
+
+	opt := &gitlab.CreatePersonalAccessTokenOptions{
+		Name:      gitlab.Ptr(name),
+		Scopes:    &scopes,
+		ExpiresAt: &isoTime,
+	}
+
+	token, _, err := c.client.Users.CreatePersonalAccessToken(userID, opt)
+	if err != nil {
+		return "", fmt.Errorf("failed to create personal access token: %w", err)
+	}
+
+	// 返回 token 的 value
+	return token.Token, nil
+}

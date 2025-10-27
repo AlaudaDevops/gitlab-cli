@@ -20,22 +20,78 @@ type ResourceProcessor struct {
 // ========================================
 
 // ProcessUserCreation 处理单个用户的创建流程
-func (p *ResourceProcessor) ProcessUserCreation(userSpec types.UserSpec) error {
-	// 1. 创建或获取用户
-	_, err := p.ensureUser(userSpec)
-	if err != nil {
-		return err
+func (p *ResourceProcessor) ProcessUserCreation(userSpec types.UserSpec) (*types.UserOutput, error) {
+	output := &types.UserOutput{
+		Username: userSpec.Username,
+		Email:    userSpec.Email,
+		Name:     userSpec.Name,
 	}
 
-	// 2. 创建组和项目
-	if len(userSpec.Groups) > 0 {
-		log.Printf("  创建 %d 个组...\n", len(userSpec.Groups))
-		if err := p.createGroups(userSpec.Username, userSpec.Groups); err != nil {
-			return err
+	// 1. 创建或获取用户
+	userID, err := p.ensureUser(userSpec)
+	if err != nil {
+		return nil, err
+	}
+	output.UserID = userID
+
+	// 2. 创建 Personal Access Token (如果配置了)
+	if userSpec.Token != nil {
+		log.Printf("  创建 Personal Access Token...\n")
+		tokenValue, actualExpiresAt, err := p.createPersonalAccessToken(userID, userSpec.Username, userSpec.Token)
+		if err != nil {
+			log.Printf("  ⚠ 创建 Token 失败: %v\n", err)
+		} else {
+			log.Printf("  ✓ Token 创建成功\n")
+			log.Printf("  Token Value: %s\n", tokenValue)
+
+			// 保存 Token 信息到输出（使用实际的过期时间）
+			output.Token = &types.TokenOutput{
+				Value:     tokenValue,
+				Scope:     userSpec.Token.Scope,
+				ExpiresAt: actualExpiresAt,
+			}
 		}
 	}
 
-	return nil
+	// 3. 创建组和项目
+	if len(userSpec.Groups) > 0 {
+		log.Printf("  创建 %d 个组...\n", len(userSpec.Groups))
+		groupOutputs, err := p.createGroupsWithOutput(userSpec.Username, userSpec.Groups)
+		if err != nil {
+			return output, err
+		}
+		output.Groups = groupOutputs
+	}
+
+	return output, nil
+}
+
+// createPersonalAccessToken 为用户创建 Personal Access Token，返回 token 值和实际使用的过期时间
+func (p *ResourceProcessor) createPersonalAccessToken(userID int, username string, tokenSpec *types.TokenSpec) (string, string, error) {
+	// 生成 token 名称，格式: username-token-timestamp
+	tokenName := fmt.Sprintf("%s-token-%d", username, time.Now().Unix())
+
+	// 设置过期时间：如果未指定，默认为第2天
+	expiresAt := tokenSpec.ExpiresAt
+	if expiresAt == "" {
+		// 计算第2天的日期（格式: YYYY-MM-DD）
+		tomorrow := time.Now().AddDate(0, 0, 2)
+		expiresAt = tomorrow.Format("2006-01-02")
+		log.Printf("    未指定过期时间，使用默认值: %s (第2天)\n", expiresAt)
+	}
+
+	// 调用客户端创建 token
+	tokenValue, err := p.Client.CreatePersonalAccessToken(
+		userID,
+		tokenName,
+		tokenSpec.Scope,
+		expiresAt,
+	)
+	if err != nil {
+		return "", "", err
+	}
+
+	return tokenValue, expiresAt, nil
 }
 
 // ensureUser 确保用户存在，如果不存在则创建
@@ -58,6 +114,42 @@ func (p *ResourceProcessor) ensureUser(userSpec types.UserSpec) (int, error) {
 
 	log.Printf("  ✓ 用户创建成功 (ID: %d)\n", user.ID)
 	return user.ID, nil
+}
+
+// createGroupsWithOutput 创建多个组及其项目并返回输出结果
+func (p *ResourceProcessor) createGroupsWithOutput(username string, groups []types.GroupSpec) ([]types.GroupOutput, error) {
+	var groupOutputs []types.GroupOutput
+
+	for j, groupSpec := range groups {
+		log.Printf("  ------------------------------------------\n")
+		log.Printf("  处理组 [%d/%d]: %s\n", j+1, len(groups), groupSpec.Name)
+
+		groupID, groupPath, err := p.ensureGroup(username, groupSpec)
+		if err != nil {
+			log.Printf("    ⚠ 创建组失败 %s: %v\n", groupSpec.Path, err)
+			continue
+		}
+
+		groupOutput := types.GroupOutput{
+			Name:       groupSpec.Name,
+			Path:       groupPath,
+			GroupID:    groupID,
+			Visibility: groupSpec.Visibility,
+		}
+
+		// 创建组下的项目
+		if len(groupSpec.Projects) > 0 {
+			log.Printf("    创建 %d 个项目...\n", len(groupSpec.Projects))
+			projectOutputs, err := p.createProjectsWithOutput(username, groupID, groupPath, groupSpec.Projects)
+			if err != nil {
+				log.Printf("    ⚠ 创建项目失败: %v\n", err)
+			}
+			groupOutput.Projects = projectOutputs
+		}
+
+		groupOutputs = append(groupOutputs, groupOutput)
+	}
+	return groupOutputs, nil
 }
 
 // createGroups 创建多个组及其项目
@@ -105,6 +197,52 @@ func (p *ResourceProcessor) ensureGroup(username string, groupSpec types.GroupSp
 
 	log.Printf("    ✓ 组创建成功 (ID: %d, Path: %s)\n", group.ID, group.Path)
 	return group.ID, group.Path, nil
+}
+
+// createProjectsWithOutput 创建多个项目并返回输出结果
+func (p *ResourceProcessor) createProjectsWithOutput(username string, groupID int, groupPath string, projects []types.ProjectSpec) ([]types.ProjectOutput, error) {
+	var projectOutputs []types.ProjectOutput
+
+	for _, projSpec := range projects {
+		fullPath := fmt.Sprintf("%s/%s", groupPath, projSpec.Path)
+		existingProj, _ := p.Client.GetProject(fullPath)
+
+		var projectID int
+		var webURL string
+
+		if existingProj != nil {
+			log.Printf("      ⚠ 项目 '%s' 已存在 (ID: %d)\n", projSpec.Name, existingProj.ID)
+			projectID = existingProj.ID
+			webURL = existingProj.WebURL
+		} else {
+			log.Printf("      创建项目: %s\n", projSpec.Name)
+			project, err := p.Client.CreateProject(
+				username,
+				groupID,
+				projSpec.Name,
+				projSpec.Path,
+				projSpec.Description,
+				utils.GetVisibility(projSpec.Visibility),
+			)
+			if err != nil {
+				log.Printf("      ⚠ 创建项目失败 %s: %v\n", projSpec.Name, err)
+				continue
+			}
+			log.Printf("      ✓ 项目创建成功 (ID: %d, Path: %s)\n", project.ID, project.PathWithNamespace)
+			projectID = project.ID
+			webURL = project.WebURL
+		}
+
+		projectOutputs = append(projectOutputs, types.ProjectOutput{
+			Name:        projSpec.Name,
+			Path:        fullPath,
+			ProjectID:   projectID,
+			Description: projSpec.Description,
+			Visibility:  projSpec.Visibility,
+			WebURL:      webURL,
+		})
+	}
+	return projectOutputs, nil
 }
 
 // createProjects 创建多个项目

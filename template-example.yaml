@@ -1,0 +1,47 @@
+# GitLab CLI 输出模板示例
+# 支持 Go template 语法，可以访问 OutputConfig 结构中的所有数据
+# 数据结构: .Users[0] 包含 Username, Email, Name, UserID, Token, Groups
+
+{{- range .Users }}
+# ========================================
+# 用户: {{ .Username }}
+# ========================================
+
+toolchains:
+  gitlab:
+    # endpoint is the full endpoint of the server
+    endpoint: https://devops-gitlab.alaudatech.net
+    # host is the ip or the hostname of the server
+    host: devops-gitlab.alaudatech.net
+    # port is the port number that server is listening
+    port: 443
+    # scheme, http or https
+    scheme: https
+    # username, the user name of the login account
+    username: {{ .Username }}
+    # email
+    email: {{ .Email }}
+    {{- if .Token }}
+    # Personal Access Token
+    token:
+      value: {{ .Token.Value }}
+      scope: {{ range $i, $s := .Token.Scope }}{{ if $i }}, {{ end }}{{ $s }}{{ end }}
+      expires_at: {{ .Token.ExpiresAt }}
+    {{- end }}
+    {{- if .Groups }}
+    # Groups and Projects
+    groups:
+      {{- range .Groups }}
+      - name: {{ .Name }}
+        path: {{ .Path }}
+        group_id: {{ .GroupID }}
+        visibility: {{ .Visibility }}
+        {{- if .Projects }}
+        projects:
+          {{- range .Projects }}
+          - name: {{ .Name }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+{{- end }}

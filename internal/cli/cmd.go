@@ -5,7 +5,9 @@ import (
 
 	"gitlab-cli-sdk/internal/config"
 	"gitlab-cli-sdk/internal/processor"
+	"gitlab-cli-sdk/internal/template"
 	"gitlab-cli-sdk/pkg/client"
+	"gitlab-cli-sdk/pkg/types"
 
 	"github.com/spf13/cobra"
 )
@@ -61,6 +63,8 @@ func buildUserCreateCommand(cfg *config.CLIConfig) *cobra.Command {
 	cmd.Flags().StringVarP(&cfg.ConfigFile, "config", "f", "../test-users.yaml", "配置文件路径")
 	cmd.Flags().StringVar(&cfg.GitLabHost, "host", "", "GitLab 主机地址")
 	cmd.Flags().StringVar(&cfg.GitLabToken, "token", "", "GitLab Personal Access Token")
+	cmd.Flags().StringVarP(&cfg.OutputFile, "output", "o", "", "输出结果到 YAML 文件")
+	cmd.Flags().StringVarP(&cfg.TemplateFile, "template", "t", "", "使用模板文件格式化输出")
 
 	return cmd
 }
@@ -98,13 +102,22 @@ func runUserCreate(cfg *config.CLIConfig) error {
 
 	proc := &processor.ResourceProcessor{Client: gitlabClient}
 
+	// 收集所有用户的输出结果
+	var userOutputs []types.UserOutput
+
 	for i, userSpec := range userConfig.Users {
 		log.Printf("==========================================\n")
 		log.Printf("处理用户 [%d/%d]: %s\n", i+1, len(userConfig.Users), userSpec.Username)
 		log.Printf("==========================================\n")
 
-		if err := proc.ProcessUserCreation(userSpec); err != nil {
+		userOutput, err := proc.ProcessUserCreation(userSpec)
+		if err != nil {
 			return err
+		}
+
+		// 将输出结果添加到列表
+		if userOutput != nil {
+			userOutputs = append(userOutputs, *userOutput)
 		}
 
 		log.Printf("\n✓ 用户 '%s' 处理完成\n\n", userSpec.Username)
@@ -113,6 +126,31 @@ func runUserCreate(cfg *config.CLIConfig) error {
 	log.Println("========================================")
 	log.Println("✓ 批量创建完成")
 	log.Println("========================================")
+
+	// 如果指定了输出文件，保存结果
+	if cfg.OutputFile != "" {
+		output := &types.OutputConfig{
+			Users: userOutputs,
+		}
+
+		// 如果指定了模板文件，使用模板渲染
+		if cfg.TemplateFile != "" {
+			log.Printf("\n使用模板渲染输出: %s\n", cfg.TemplateFile)
+			log.Printf("保存结果到文件: %s\n", cfg.OutputFile)
+			if err := template.SaveTemplateOutput(cfg.TemplateFile, cfg.OutputFile, output); err != nil {
+				return err
+			}
+			log.Printf("✓ 使用模板渲染完成，结果已保存到: %s\n", cfg.OutputFile)
+		} else {
+			// 使用默认 YAML 格式
+			log.Printf("\n保存结果到文件: %s\n", cfg.OutputFile)
+			if err := config.SaveOutput(cfg.OutputFile, output); err != nil {
+				return err
+			}
+			log.Printf("✓ 结果已保存到: %s\n", cfg.OutputFile)
+		}
+	}
+
 	return nil
 }
 
