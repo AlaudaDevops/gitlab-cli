@@ -228,11 +228,15 @@ users:
 使用模板：
 
 ```yaml
-# 使用 Go template 语法
+# 使用 Go template 语法，支持动态渲染 GitLab 服务器信息
 {{- range .Users }}
 toolchains:
   gitlab:
-    endpoint: https://your-gitlab.com
+    # 动态渲染服务器配置（根据 --host 参数自动适配）
+    endpoint: {{ $.Endpoint }}
+    host: {{ $.Host }}
+    scheme: {{ $.Scheme }}
+    # 用户信息
     username: {{ .Username }}
     email: {{ .Email }}
     user_id: {{ .UserID }}
