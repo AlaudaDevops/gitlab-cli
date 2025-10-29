@@ -2,6 +2,7 @@ package cli
 
 import (
 	"log"
+	"strings"
 
 	"gitlab-cli-sdk/internal/config"
 	"gitlab-cli-sdk/internal/processor"
@@ -129,8 +130,14 @@ func runUserCreate(cfg *config.CLIConfig) error {
 
 	// 如果指定了输出文件，保存结果
 	if cfg.OutputFile != "" {
+		// 从 GitLabHost 解析 endpoint、scheme 和 host
+		endpoint, scheme, host := parseGitLabHostURL(cfg.GitLabHost)
+
 		output := &types.OutputConfig{
-			Users: userOutputs,
+			Endpoint: endpoint,
+			Scheme:   scheme,
+			Host:     host,
+			Users:    userOutputs,
 		}
 
 		// 如果指定了模板文件，使用模板渲染
@@ -204,4 +211,31 @@ func initializeClient(cfg *config.CLIConfig) (*client.GitLabClient, error) {
 	}
 
 	return gitlabClient, nil
+}
+
+// parseGitLabHostURL 从 GitLab Host URL 解析出 endpoint、scheme 和 host
+func parseGitLabHostURL(gitlabHost string) (endpoint, scheme, host string) {
+	// 默认值
+	scheme = "https"
+	endpoint = gitlabHost
+
+	// 去除尾部斜杠
+	endpoint = strings.TrimSuffix(endpoint, "/")
+
+	// 检查是否包含 scheme
+	if strings.HasPrefix(endpoint, "http://") {
+		scheme = "http"
+		host = strings.TrimPrefix(endpoint, "http://")
+	} else if strings.HasPrefix(endpoint, "https://") {
+		scheme = "https"
+		host = strings.TrimPrefix(endpoint, "https://")
+	} else {
+		// 如果没有 scheme，则 host 就是原始的 endpoint
+		host = endpoint
+	}
+
+	// 重新添加 scheme 构造完整的 endpoint
+	endpoint = scheme + "://" + host
+
+	return endpoint, scheme, host
 }

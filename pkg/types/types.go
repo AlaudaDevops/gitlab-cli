@@ -43,7 +43,10 @@ type ProjectSpec struct {
 
 // OutputConfig 输出配置结构
 type OutputConfig struct {
-	Users []UserOutput `yaml:"users"`
+	Endpoint string       `yaml:"endpoint"`
+	Scheme   string       `yaml:"scheme"`
+	Host     string       `yaml:"host"`
+	Users    []UserOutput `yaml:"users"`
 }
 
 // UserOutput 用户输出结果
