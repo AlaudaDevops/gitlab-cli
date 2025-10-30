@@ -7,12 +7,13 @@ type UserConfig struct {
 
 // UserSpec 用户规格定义
 type UserSpec struct {
+	NameMode string      `yaml:"nameMode,omitempty"` // 命名模式: "prefix" (添加时间戳) 或 "name" (不添加时间戳)，默认为 "prefix"
 	Username string      `yaml:"username"`
 	Email    string      `yaml:"email"`
 	Name     string      `yaml:"name"`
 	Password string      `yaml:"password"`
-	Token    *TokenSpec  `yaml:"token"`    // Personal Access Token 配置
-	Groups   []GroupSpec `yaml:"groups"`   // 支持多个组
+	Token    *TokenSpec  `yaml:"token"`  // Personal Access Token 配置
+	Groups   []GroupSpec `yaml:"groups"` // 支持多个组
 }
 
 // TokenSpec Personal Access Token 规格定义
@@ -23,6 +24,7 @@ type TokenSpec struct {
 
 // GroupSpec 组规格定义
 type GroupSpec struct {
+	NameMode   string        `yaml:"nameMode,omitempty"` // 命名模式: "prefix" (添加时间戳) 或 "name" (不添加时间戳)，继承 UserSpec.NameMode
 	Name       string        `yaml:"name"`
 	Path       string        `yaml:"path"`
 	Visibility string        `yaml:"visibility"`
@@ -31,6 +33,7 @@ type GroupSpec struct {
 
 // ProjectSpec 项目规格定义
 type ProjectSpec struct {
+	NameMode    string `yaml:"nameMode,omitempty"` // 命名模式: "prefix" (添加时间戳) 或 "name" (不添加时间戳)，继承 GroupSpec.NameMode
 	Name        string `yaml:"name"`
 	Path        string `yaml:"path"`
 	Description string `yaml:"description"`

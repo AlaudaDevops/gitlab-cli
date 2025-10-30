@@ -38,3 +38,8 @@ my-users.yaml
 dev-users.yaml
 ci-users.yaml
 test-users.yaml
+user.yaml
+
+# Output files
+output.yaml
+*.output.yaml

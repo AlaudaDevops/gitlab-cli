@@ -67,16 +67,47 @@ export GITLAB_TOKEN=your-personal-access-token
   --host https://your-gitlab.com \
   --token your-token \
   -f config.yaml
+
+# ⚠️ 注意：prefix 模式下的清理
+# 如果使用 nameMode: prefix（添加时间戳），清理时需要使用创建时输出的文件
+# 因为实际的用户名、组名、项目名都带有时间戳
+
+# 1. 创建时保存输出文件
+./bin/gitlab-cli user create \
+  -f config.yaml \
+  -o output.yaml
+
+# 2. 清理时使用输出文件
+./bin/gitlab-cli user cleanup \
+  -f output.yaml
 ```
 
 ## 📖 配置文件示例
+
+### 命名模式说明
+
+配置文件支持两种命名模式：
+
+**1. prefix 模式（默认）**
+- 自动在 username、email、group path、project path 后添加时间戳
+- 示例：`tektoncd` → `tektoncd-20251030150000`
+- 适用场景：测试环境、需要创建多个相似资源
+- ⚠️ 清理时必须使用创建时输出的文件
+
+**2. name 模式**
+- 不添加时间戳，直接使用配置文件中的名称
+- 示例：`test-user-001` → `test-user-001`（不变）
+- 适用场景：生产环境、固定名称的资源
+- 可直接使用配置文件清理
 
 ### 基本配置
 
 ```yaml
 # test-users.yaml
 users:
-  - username: tektoncd
+  # 使用 prefix 模式（默认）
+  - nameMode: prefix  # 可选，默认为 prefix
+    username: tektoncd
     email: tektoncd001@test.example.com
     name: tektoncd-test
     password: "MyStr0ng!Pass2024"

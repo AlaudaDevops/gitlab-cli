@@ -1,0 +1,51 @@
+users:
+  # 示例 1: prefix 模式（添加时间戳）- 默认模式
+  # ⚠️ 注意：prefix 模式下，清理时需要使用创建时输出的文件
+  # 使用方法：
+  #   1. 创建：./bin/gitlab-cli user create -f user.yaml -o output.yaml
+  #   2. 清理：./bin/gitlab-cli user cleanup -f output.yaml
+  - nameMode: prefix  # 可选，默认为 prefix
+    username: tektoncd
+    email: tektoncd001@test.example.com
+    name: tektoncd-test
+    password: "MyStr0ng!Pass2024"
+    # Personal Access Token 配置（可选）
+    token:
+      scope:
+        - api
+        - read_user
+        - read_repository
+        - write_repository
+        - read_api
+        - create_runner
+      # expires_at: 2026-01-01  # 可选，不指定则默认为第2天
+
+    # 组和项目配置
+    groups:
+      - name: backend-group
+        path: backend-group
+        visibility: private
+        projects:
+          - name: demo
+            path: demo
+            description: demo project
+            visibility: private
+
+  # 示例 2: name 模式（不添加时间戳）
+  # 使用方法：
+  #   1. 创建：./bin/gitlab-cli user create -f user.yaml
+  #   2. 清理：./bin/gitlab-cli user cleanup -f user.yaml  # 可直接使用同一配置文件
+  # - nameMode: name
+  #   username: test-user-001
+  #   email: testuser001@test.example.com
+  #   name: Test User 001
+  #   password: "MyStr0ng!Pass2024"
+  #   groups:
+  #     - name: test-group
+  #       path: test-group
+  #       visibility: private
+  #       projects:
+  #         - name: test-project
+  #           path: test-project
+  #           description: Test project
+  #           visibility: private
