@@ -204,6 +204,12 @@ token:
 ./bin/gitlab-cli user create -f config.yaml -o output.yaml
 ```
 
+输出包含创建的所有资源信息：
+- 用户信息：username, email, name, user_id, password
+- Token 信息：value, scope, expires_at（如果配置了 token）
+- 组信息：name, path, group_id, visibility（如果配置了 groups）
+- 项目信息：name, path, project_id, description, visibility, web_url（包括组下的项目和用户级项目）
+
 输出格式：
 
 ```yaml
@@ -212,6 +218,7 @@ users:
     email: tektoncd001@test.example.com
     name: tektoncd-test
     user_id: 24
+    password: MyStr0ng!Pass2024
     token:
       value: glpat-TXLgrsMwyVt5obFqkDny
       scope:
@@ -285,6 +292,9 @@ toolchains:
     username: {{ .Username }}
     email: {{ .Email }}
     user_id: {{ .UserID }}
+    {{- if .Password }}
+    password: {{ .Password }}
+    {{- end }}
     {{- if .Token }}
     token:
       value: {{ .Token.Value }}

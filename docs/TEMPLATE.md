@@ -38,22 +38,30 @@ GitLab CLI 支持使用自定义模板来格式化输出结果，让你可以按
   ├── .Email         // 邮箱
   ├── .Name          // 姓名
   ├── .UserID        // 用户 ID
+  ├── .Password      // 用户密码
   ├── .Token         // Personal Access Token (可能为空)
   │   ├── .Value     // Token 值
   │   ├── .Scope     // 权限范围数组
   │   └── .ExpiresAt // 过期时间
-  └── .Groups        // 组数组
-      ├── .Name       // 组名
-      ├── .Path       // 组路径
-      ├── .GroupID    // 组 ID
-      ├── .Visibility // 可见性
-      └── .Projects   // 项目数组
-          ├── .Name        // 项目名
-          ├── .Path        // 项目路径
-          ├── .ProjectID   // 项目 ID
-          ├── .Description // 描述
-          ├── .Visibility  // 可见性
-          └── .WebURL      // Web URL
+  ├── .Groups        // 组数组
+  │   ├── .Name       // 组名
+  │   ├── .Path       // 组路径
+  │   ├── .GroupID    // 组 ID
+  │   ├── .Visibility // 可见性
+  │   └── .Projects   // 组下的项目数组
+  │       ├── .Name        // 项目名
+  │       ├── .Path        // 项目路径
+  │       ├── .ProjectID   // 项目 ID
+  │       ├── .Description // 描述
+  │       ├── .Visibility  // 可见性
+  │       └── .WebURL      // Web URL
+  └── .Projects      // 用户级项目数组（不属于任何组）
+      ├── .Name        // 项目名
+      ├── .Path        // 项目路径
+      ├── .ProjectID   // 项目 ID
+      ├── .Description // 描述
+      ├── .Visibility  // 可见性
+      └── .WebURL      // Web URL
 ```
 
 ### 基础语法
@@ -64,6 +72,9 @@ GitLab CLI 支持使用自定义模板来格式化输出结果，让你可以按
 username: {{ .Username }}
 email: {{ .Email }}
 user_id: {{ .UserID }}
+{{- if .Password }}
+password: {{ .Password }}
+{{- end }}
 ```
 
 #### 2. 遍历用户列表
@@ -144,6 +155,9 @@ toolchains:
     username: {{ .Username }}
     email: {{ .Email }}
     user_id: {{ .UserID }}
+    {{- if .Password }}
+    password: {{ .Password }}
+    {{- end }}
     {{- if .Token }}
     token:
       value: {{ .Token.Value }}
