@@ -149,6 +149,13 @@ users:
             path: test-go-api
             description: Go API 服务
             visibility: private
+
+    # 用户级项目（不属于任何组，直接在用户命名空间下）
+    projects:
+      - name: my-personal-project
+        path: my-personal-project
+        description: Personal project under user namespace
+        visibility: private
 ```
 
 ### Token 配置说明
@@ -250,6 +257,13 @@ users:
             description: Go API 服务
             visibility: private
             web_url: https://devops-gitlab.alaudatech.net/tektoncd-backend-group/test-go-api
+    projects:
+      - name: my-personal-project
+        path: tektoncd/my-personal-project
+        project_id: 1438
+        description: Personal project under user namespace
+        visibility: private
+        web_url: https://devops-gitlab.alaudatech.net/tektoncd/my-personal-project
 ```
 
 ### 自定义模板输出

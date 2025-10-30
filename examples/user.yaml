@@ -31,6 +31,13 @@ users:
             description: demo project
             visibility: private
 
+    # 用户级项目（不属于任何组，直接在用户命名空间下）
+    projects:
+      - name: my-personal-project
+        path: my-personal-project
+        description: Personal project under user namespace
+        visibility: private
+
   # 示例 2: name 模式（不添加时间戳）
   # 使用方法：
   #   1. 创建：./bin/gitlab-cli user create -f user.yaml

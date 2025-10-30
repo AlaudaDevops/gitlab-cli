@@ -86,6 +86,17 @@ func (p *ResourceProcessor) ProcessUserCreation(userSpec types.UserSpec) (*types
 		output.Groups = groupOutputs
 	}
 
+	// 4. 创建用户级项目（不属于任何组的项目）
+	if len(userSpec.Projects) > 0 {
+		log.Printf("  创建 %d 个用户级项目...\n", len(userSpec.Projects))
+		projectOutputs, err := p.createUserProjectsWithOutput(actualUsername, userSpec.Projects, nameMode)
+		if err != nil {
+			log.Printf("  ⚠ 创建用户级项目失败: %v\n", err)
+		} else {
+			output.Projects = projectOutputs
+		}
+	}
+
 	return output, nil
 }
 
@@ -224,6 +235,85 @@ func (p *ResourceProcessor) ensureGroup(username string, groupSpec types.GroupSp
 	return group.ID, group.Path, nil
 }
 
+// createUserProjectsWithOutput 创建用户级别的项目（不属于任何组）
+func (p *ResourceProcessor) createUserProjectsWithOutput(username string, projects []types.ProjectSpec, userNameMode string) ([]types.ProjectOutput, error) {
+	var projectOutputs []types.ProjectOutput
+
+	// 获取用户信息以获取用户的 namespace ID
+	user, err := p.Client.GetUser(username)
+	if err != nil || user == nil {
+		return nil, fmt.Errorf("获取用户信息失败: %w", err)
+	}
+
+	for _, projSpec := range projects {
+		// 确定项目的 nameMode（如果项目没有指定，则继承用户的 nameMode）
+		projectNameMode := projSpec.NameMode
+		if projectNameMode == "" {
+			projectNameMode = userNameMode
+		}
+
+		// 根据 nameMode 生成实际的 project path
+		var actualProjectPath string
+		if projectNameMode == "name" {
+			// name 模式：直接使用配置文件中的名称
+			actualProjectPath = projSpec.Path
+			if actualProjectPath == "" {
+				actualProjectPath = projSpec.Name
+			}
+			log.Printf("    使用 name 模式，项目 path: %s\n", actualProjectPath)
+		} else {
+			// prefix 模式：添加时间戳
+			if projSpec.Path == "" {
+				actualProjectPath = utils.GenerateProjectPathWithTimestamp(projSpec.Name)
+			} else {
+				actualProjectPath = utils.GenerateProjectPathWithTimestamp(projSpec.Path)
+			}
+			log.Printf("    使用 prefix 模式，生成项目 path: %s\n", actualProjectPath)
+		}
+
+		// 用户级项目的 full path 是 username/project-path
+		fullPath := fmt.Sprintf("%s/%s", username, actualProjectPath)
+		existingProj, _ := p.Client.GetProject(fullPath)
+
+		var projectID int
+		var webURL string
+
+		if existingProj != nil {
+			log.Printf("    ⚠ 项目 '%s' 已存在 (ID: %d)\n", projSpec.Name, existingProj.ID)
+			projectID = existingProj.ID
+			webURL = existingProj.WebURL
+		} else {
+			log.Printf("    创建用户级项目: %s (path: %s)\n", projSpec.Name, actualProjectPath)
+			// 用户级项目使用用户的 ID 作为 namespace ID
+			project, err := p.Client.CreateProject(
+				username,
+				user.ID, // 使用用户 ID 作为 namespace ID
+				projSpec.Name,
+				actualProjectPath,
+				projSpec.Description,
+				utils.GetVisibility(projSpec.Visibility),
+			)
+			if err != nil {
+				log.Printf("    ⚠ 创建项目失败 %s: %v\n", projSpec.Name, err)
+				continue
+			}
+			log.Printf("    ✓ 项目创建成功 (ID: %d, Path: %s)\n", project.ID, project.PathWithNamespace)
+			projectID = project.ID
+			webURL = project.WebURL
+		}
+
+		projectOutputs = append(projectOutputs, types.ProjectOutput{
+			Name:        projSpec.Name,
+			Path:        fullPath,
+			ProjectID:   projectID,
+			Description: projSpec.Description,
+			Visibility:  projSpec.Visibility,
+			WebURL:      webURL,
+		})
+	}
+	return projectOutputs, nil
+}
+
 // createProjectsWithOutput 创建多个项目并返回输出结果
 func (p *ResourceProcessor) createProjectsWithOutput(username string, groupID int, groupPath string, projects []types.ProjectSpec, groupNameMode string) ([]types.ProjectOutput, error) {
 	var projectOutputs []types.ProjectOutput
@@ -314,7 +404,13 @@ func (p *ResourceProcessor) ProcessUserCleanup(userSpec types.UserSpec) error {
 
 	log.Printf("  找到用户 '%s' (ID: %d, 邮箱: %s)\n", user.Username, user.ID, user.Email)
 
-	// 1. 删除配置文件中定义的组和项目
+	// 1. 删除用户级项目（不属于任何组的项目）
+	if len(userSpec.Projects) > 0 {
+		log.Printf("  删除 %d 个用户级项目...\n", len(userSpec.Projects))
+		p.deleteUserProjects(userSpec.Username, userSpec.Projects)
+	}
+
+	// 2. 删除配置文件中定义的组和项目
 	if len(userSpec.Groups) > 0 {
 		log.Printf("  删除 %d 个组及其项目...\n", len(userSpec.Groups))
 		p.deleteConfiguredGroups(userSpec.Groups)
@@ -339,6 +435,33 @@ func (p *ResourceProcessor) ProcessUserCleanup(userSpec types.UserSpec) error {
 	}
 
 	return nil
+}
+
+// deleteUserProjects 删除用户级项目
+func (p *ResourceProcessor) deleteUserProjects(username string, projects []types.ProjectSpec) {
+	for i, projSpec := range projects {
+		log.Printf("  ------------------------------------------\n")
+		log.Printf("  处理用户级项目 [%d/%d]: %s\n", i+1, len(projects), projSpec.Name)
+
+		// 用户级项目的 full path 是 username/project-path
+		projectPath := projSpec.Path
+		if projectPath == "" {
+			projectPath = projSpec.Name
+		}
+		fullPath := fmt.Sprintf("%s/%s", username, projectPath)
+		project, _ := p.Client.GetProject(fullPath)
+
+		if project != nil {
+			log.Printf("    删除项目: %s (ID: %d)\n", projSpec.Name, project.ID)
+			if err := p.Client.DeleteProject(project.ID); err != nil {
+				log.Printf("    ⚠ 删除项目失败: %v\n", err)
+			} else {
+				log.Printf("    ✓ 项目删除成功\n")
+			}
+		} else {
+			log.Printf("    ⚠ 项目不存在，跳过: %s\n", fullPath)
+		}
+	}
 }
 
 // deleteConfiguredGroups 删除配置文件中定义的组及其项目

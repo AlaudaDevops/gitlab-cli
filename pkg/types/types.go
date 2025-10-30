@@ -7,13 +7,14 @@ type UserConfig struct {
 
 // UserSpec 用户规格定义
 type UserSpec struct {
-	NameMode string      `yaml:"nameMode,omitempty"` // 命名模式: "prefix" (添加时间戳) 或 "name" (不添加时间戳)，默认为 "prefix"
-	Username string      `yaml:"username"`
-	Email    string      `yaml:"email"`
-	Name     string      `yaml:"name"`
-	Password string      `yaml:"password"`
-	Token    *TokenSpec  `yaml:"token"`  // Personal Access Token 配置
-	Groups   []GroupSpec `yaml:"groups"` // 支持多个组
+	NameMode string        `yaml:"nameMode,omitempty"` // 命名模式: "prefix" (添加时间戳) 或 "name" (不添加时间戳)，默认为 "prefix"
+	Username string        `yaml:"username"`
+	Email    string        `yaml:"email"`
+	Name     string        `yaml:"name"`
+	Password string        `yaml:"password"`
+	Token    *TokenSpec    `yaml:"token"`    // Personal Access Token 配置
+	Groups   []GroupSpec   `yaml:"groups"`   // 支持多个组
+	Projects []ProjectSpec `yaml:"projects"` // 用户级别的项目（不属于任何组）
 }
 
 // TokenSpec Personal Access Token 规格定义
@@ -54,12 +55,13 @@ type OutputConfig struct {
 
 // UserOutput 用户输出结果
 type UserOutput struct {
-	Username string              `yaml:"username"`
-	Email    string              `yaml:"email"`
-	Name     string              `yaml:"name"`
-	UserID   int                 `yaml:"user_id"`
-	Token    *TokenOutput        `yaml:"token,omitempty"`
-	Groups   []GroupOutput       `yaml:"groups,omitempty"`
+	Username string          `yaml:"username"`
+	Email    string          `yaml:"email"`
+	Name     string          `yaml:"name"`
+	UserID   int             `yaml:"user_id"`
+	Token    *TokenOutput    `yaml:"token,omitempty"`
+	Groups   []GroupOutput   `yaml:"groups,omitempty"`
+	Projects []ProjectOutput `yaml:"projects,omitempty"` // 用户级别的项目
 }
 
 // TokenOutput Token 输出结果
