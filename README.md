@@ -248,6 +248,7 @@ toolchains:
     {{- end }}
     {{- if .Groups }}
     groups:
+      default: {{ .Username }}
       {{- range .Groups }}
       - name: {{ .Name }}
         group_id: {{ .GroupID }}
@@ -255,6 +256,9 @@ toolchains:
     {{- end }}
 {{- end }}
 ```
+
+**模板说明：**
+- `default: {{ .Username }}` - 指定默认组，新创建的项目将默认使用此用户名作为命名空间
 
 使用模板：
 

@@ -29,6 +29,7 @@ toolchains:
     {{- if .Groups }}
     # Groups and Projects
     TestGroups:
+      default: {{ .Username }}
       {{- range .Groups }}
       - name: {{ .Name }}
         path: {{ .Path }}
