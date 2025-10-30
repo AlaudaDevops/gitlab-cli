@@ -55,6 +55,53 @@ func (c *GitLabClient) GetUser(username string) (*gitlab.User, error) {
 	return users[0], nil
 }
 
+// GetUserNamespaceID 获取用户的 namespace ID
+func (c *GitLabClient) GetUserNamespaceID(username string) (int, error) {
+	// 列出用户的所有 namespace
+	namespaces, _, err := c.client.Namespaces.ListNamespaces(&gitlab.ListNamespacesOptions{
+		Search: gitlab.Ptr(username),
+	}, gitlab.WithSudo(username))
+	if err != nil {
+		return 0, err
+	}
+
+	// 查找用户的个人 namespace（kind 为 "user"）
+	for _, ns := range namespaces {
+		if ns.Kind == "user" && ns.Path == username {
+			return ns.ID, nil
+		}
+	}
+
+	return 0, fmt.Errorf("未找到用户 %s 的 namespace", username)
+}
+
+// ListUserProjects 列出用户的个人项目（不属于任何组的项目）
+func (c *GitLabClient) ListUserProjects(username string) ([]*gitlab.Project, error) {
+	// 获取用户信息
+	user, err := c.GetUser(username)
+	if err != nil || user == nil {
+		return nil, fmt.Errorf("获取用户信息失败: %w", err)
+	}
+
+	// 列出用户拥有的所有项目，过滤出个人命名空间下的项目
+	projects, _, err := c.client.Projects.ListUserProjects(user.ID, &gitlab.ListProjectsOptions{
+		Owned: gitlab.Ptr(true),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// 过滤出用户个人命名空间下的项目（namespace.kind == "user"）
+	var userProjects []*gitlab.Project
+	for _, project := range projects {
+		if project.Namespace.Kind == "user" {
+			userProjects = append(userProjects, project)
+		}
+	}
+
+	return userProjects, nil
+}
+
 // CreateUser 创建用户
 func (c *GitLabClient) CreateUser(username, email, name, password string) (*gitlab.User, error) {
 	user, _, err := c.client.Users.CreateUser(&gitlab.CreateUserOptions{

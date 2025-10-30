@@ -239,11 +239,13 @@ func (p *ResourceProcessor) ensureGroup(username string, groupSpec types.GroupSp
 func (p *ResourceProcessor) createUserProjectsWithOutput(username string, projects []types.ProjectSpec, userNameMode string) ([]types.ProjectOutput, error) {
 	var projectOutputs []types.ProjectOutput
 
-	// 获取用户信息以获取用户的 namespace ID
-	user, err := p.Client.GetUser(username)
-	if err != nil || user == nil {
-		return nil, fmt.Errorf("获取用户信息失败: %w", err)
+	// 获取用户的 namespace ID
+	namespaceID, err := p.Client.GetUserNamespaceID(username)
+	if err != nil {
+		return nil, fmt.Errorf("获取用户 namespace ID 失败: %w", err)
 	}
+
+	log.Printf("    用户 %s 的 namespace ID: %d\n", username, namespaceID)
 
 	for _, projSpec := range projects {
 		// 确定项目的 nameMode（如果项目没有指定，则继承用户的 nameMode）
@@ -284,10 +286,10 @@ func (p *ResourceProcessor) createUserProjectsWithOutput(username string, projec
 			webURL = existingProj.WebURL
 		} else {
 			log.Printf("    创建用户级项目: %s (path: %s)\n", projSpec.Name, actualProjectPath)
-			// 用户级项目使用用户的 ID 作为 namespace ID
+			// 用户级项目使用用户的 namespace ID
 			project, err := p.Client.CreateProject(
 				username,
-				user.ID, // 使用用户 ID 作为 namespace ID
+				namespaceID, // 使用用户的 namespace ID
 				projSpec.Name,
 				actualProjectPath,
 				projSpec.Description,
@@ -406,8 +408,8 @@ func (p *ResourceProcessor) ProcessUserCleanup(userSpec types.UserSpec) error {
 
 	// 1. 删除用户级项目（不属于任何组的项目）
 	if len(userSpec.Projects) > 0 {
-		log.Printf("  删除 %d 个用户级项目...\n", len(userSpec.Projects))
-		p.deleteUserProjects(userSpec.Username, userSpec.Projects)
+		log.Printf("  删除用户级项目...\n")
+		p.deleteUserProjects(userSpec.Username)
 	}
 
 	// 2. 删除配置文件中定义的组和项目
@@ -438,28 +440,29 @@ func (p *ResourceProcessor) ProcessUserCleanup(userSpec types.UserSpec) error {
 }
 
 // deleteUserProjects 删除用户级项目
-func (p *ResourceProcessor) deleteUserProjects(username string, projects []types.ProjectSpec) {
-	for i, projSpec := range projects {
+// 注意：此函数会删除用户命名空间下的所有个人项目（不属于任何组的项目）
+func (p *ResourceProcessor) deleteUserProjects(username string) {
+	// 获取用户拥有的所有项目
+	userProjects, err := p.Client.ListUserProjects(username)
+	if err != nil {
+		log.Printf("  ⚠ 获取用户项目列表失败: %v\n", err)
+		return
+	}
+
+	if len(userProjects) == 0 {
+		log.Printf("  用户没有个人项目\n")
+		return
+	}
+
+	log.Printf("  发现用户有 %d 个个人项目，开始删除...\n", len(userProjects))
+	for i, project := range userProjects {
 		log.Printf("  ------------------------------------------\n")
-		log.Printf("  处理用户级项目 [%d/%d]: %s\n", i+1, len(projects), projSpec.Name)
-
-		// 用户级项目的 full path 是 username/project-path
-		projectPath := projSpec.Path
-		if projectPath == "" {
-			projectPath = projSpec.Name
-		}
-		fullPath := fmt.Sprintf("%s/%s", username, projectPath)
-		project, _ := p.Client.GetProject(fullPath)
-
-		if project != nil {
-			log.Printf("    删除项目: %s (ID: %d)\n", projSpec.Name, project.ID)
-			if err := p.Client.DeleteProject(project.ID); err != nil {
-				log.Printf("    ⚠ 删除项目失败: %v\n", err)
-			} else {
-				log.Printf("    ✓ 项目删除成功\n")
-			}
+		log.Printf("  处理用户级项目 [%d/%d]: %s\n", i+1, len(userProjects), project.Name)
+		log.Printf("    删除项目: %s (ID: %d, Path: %s)\n", project.Name, project.ID, project.PathWithNamespace)
+		if err := p.Client.DeleteProject(project.ID); err != nil {
+			log.Printf("    ⚠ 删除项目失败: %v\n", err)
 		} else {
-			log.Printf("    ⚠ 项目不存在，跳过: %s\n", fullPath)
+			log.Printf("    ✓ 项目删除成功\n")
 		}
 	}
 }
