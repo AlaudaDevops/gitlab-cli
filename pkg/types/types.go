@@ -59,6 +59,7 @@ type UserOutput struct {
 	Email    string          `yaml:"email"`
 	Name     string          `yaml:"name"`
 	UserID   int             `yaml:"user_id"`
+	Password string          `yaml:"password,omitempty"` // 用户密码
 	Token    *TokenOutput    `yaml:"token,omitempty"`
 	Groups   []GroupOutput   `yaml:"groups,omitempty"`
 	Projects []ProjectOutput `yaml:"projects,omitempty"` // 用户级别的项目

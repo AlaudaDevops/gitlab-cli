@@ -48,6 +48,7 @@ func (p *ResourceProcessor) ProcessUserCreation(userSpec types.UserSpec) (*types
 		Username: actualUsername,
 		Email:    actualEmail,
 		Name:     userSpec.Name,
+		Password: userSpec.Password, // 保存密码到输出
 	}
 
 	// 1. 创建或获取用户
