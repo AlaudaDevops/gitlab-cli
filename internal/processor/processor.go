@@ -21,14 +21,37 @@ type ResourceProcessor struct {
 
 // ProcessUserCreation 处理单个用户的创建流程
 func (p *ResourceProcessor) ProcessUserCreation(userSpec types.UserSpec) (*types.UserOutput, error) {
+	// 确定 nameMode
+	nameMode := userSpec.NameMode
+	if nameMode == "" {
+		nameMode = "prefix" // 默认为 prefix 模式
+	}
+
+	// 根据 nameMode 生成实际的 username 和 email
+	var actualUsername, actualEmail string
+	if nameMode == "name" {
+		// name 模式：直接使用配置文件中的名称
+		actualUsername = userSpec.Username
+		actualEmail = userSpec.Email
+		log.Printf("  使用 name 模式（不添加时间戳）\n")
+	} else {
+		// prefix 模式：添加时间戳
+		actualUsername = utils.GenerateUsernameWithTimestamp(userSpec.Username)
+		actualEmail = utils.GenerateEmailWithTimestamp(userSpec.Email)
+		log.Printf("  使用 prefix 模式（添加时间戳）\n")
+	}
+
+	log.Printf("  用户名: %s\n", actualUsername)
+	log.Printf("  邮箱: %s\n", actualEmail)
+
 	output := &types.UserOutput{
-		Username: userSpec.Username,
-		Email:    userSpec.Email,
+		Username: actualUsername,
+		Email:    actualEmail,
 		Name:     userSpec.Name,
 	}
 
 	// 1. 创建或获取用户
-	userID, err := p.ensureUser(userSpec)
+	userID, err := p.ensureUser(userSpec, actualUsername, actualEmail)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +60,7 @@ func (p *ResourceProcessor) ProcessUserCreation(userSpec types.UserSpec) (*types
 	// 2. 创建 Personal Access Token (如果配置了)
 	if userSpec.Token != nil {
 		log.Printf("  创建 Personal Access Token...\n")
-		tokenValue, actualExpiresAt, err := p.createPersonalAccessToken(userID, userSpec.Username, userSpec.Token)
+		tokenValue, actualExpiresAt, err := p.createPersonalAccessToken(userID, actualUsername, userSpec.Token)
 		if err != nil {
 			log.Printf("  ⚠ 创建 Token 失败: %v\n", err)
 		} else {
@@ -56,7 +79,7 @@ func (p *ResourceProcessor) ProcessUserCreation(userSpec types.UserSpec) (*types
 	// 3. 创建组和项目
 	if len(userSpec.Groups) > 0 {
 		log.Printf("  创建 %d 个组...\n", len(userSpec.Groups))
-		groupOutputs, err := p.createGroupsWithOutput(userSpec.Username, userSpec.Groups)
+		groupOutputs, err := p.createGroupsWithOutput(actualUsername, userSpec.Groups, nameMode)
 		if err != nil {
 			return output, err
 		}
@@ -95,21 +118,21 @@ func (p *ResourceProcessor) createPersonalAccessToken(userID int, username strin
 }
 
 // ensureUser 确保用户存在，如果不存在则创建
-func (p *ResourceProcessor) ensureUser(userSpec types.UserSpec) (int, error) {
-	existingUser, err := p.Client.GetUser(userSpec.Username)
+func (p *ResourceProcessor) ensureUser(userSpec types.UserSpec, actualUsername, actualEmail string) (int, error) {
+	existingUser, err := p.Client.GetUser(actualUsername)
 	if err != nil {
 		log.Printf("  ⚠ 检查用户失败: %v\n", err)
 	}
 
 	if existingUser != nil {
-		log.Printf("  ⚠ 用户 '%s' 已存在 (ID: %d)\n", userSpec.Username, existingUser.ID)
+		log.Printf("  ⚠ 用户 '%s' 已存在 (ID: %d)\n", actualUsername, existingUser.ID)
 		return existingUser.ID, nil
 	}
 
-	log.Printf("  创建用户: %s\n", userSpec.Username)
-	user, err := p.Client.CreateUser(userSpec.Username, userSpec.Email, userSpec.Name, userSpec.Password)
+	log.Printf("  创建用户: %s\n", actualUsername)
+	user, err := p.Client.CreateUser(actualUsername, actualEmail, userSpec.Name, userSpec.Password)
 	if err != nil {
-		return 0, fmt.Errorf("创建用户 %s: %w", userSpec.Username, err)
+		return 0, fmt.Errorf("创建用户 %s: %w", actualUsername, err)
 	}
 
 	log.Printf("  ✓ 用户创建成功 (ID: %d)\n", user.ID)
@@ -117,14 +140,20 @@ func (p *ResourceProcessor) ensureUser(userSpec types.UserSpec) (int, error) {
 }
 
 // createGroupsWithOutput 创建多个组及其项目并返回输出结果
-func (p *ResourceProcessor) createGroupsWithOutput(username string, groups []types.GroupSpec) ([]types.GroupOutput, error) {
+func (p *ResourceProcessor) createGroupsWithOutput(username string, groups []types.GroupSpec, userNameMode string) ([]types.GroupOutput, error) {
 	var groupOutputs []types.GroupOutput
 
 	for j, groupSpec := range groups {
 		log.Printf("  ------------------------------------------\n")
 		log.Printf("  处理组 [%d/%d]: %s\n", j+1, len(groups), groupSpec.Name)
 
-		groupID, groupPath, err := p.ensureGroup(username, groupSpec)
+		// 确定组的 nameMode（如果组没有指定，则继承用户的 nameMode）
+		groupNameMode := groupSpec.NameMode
+		if groupNameMode == "" {
+			groupNameMode = userNameMode
+		}
+
+		groupID, groupPath, err := p.ensureGroup(username, groupSpec, groupNameMode)
 		if err != nil {
 			log.Printf("    ⚠ 创建组失败 %s: %v\n", groupSpec.Path, err)
 			continue
@@ -140,7 +169,7 @@ func (p *ResourceProcessor) createGroupsWithOutput(username string, groups []typ
 		// 创建组下的项目
 		if len(groupSpec.Projects) > 0 {
 			log.Printf("    创建 %d 个项目...\n", len(groupSpec.Projects))
-			projectOutputs, err := p.createProjectsWithOutput(username, groupID, groupPath, groupSpec.Projects)
+			projectOutputs, err := p.createProjectsWithOutput(username, groupID, groupPath, groupSpec.Projects, groupNameMode)
 			if err != nil {
 				log.Printf("    ⚠ 创建项目失败: %v\n", err)
 			}
@@ -153,19 +182,38 @@ func (p *ResourceProcessor) createGroupsWithOutput(username string, groups []typ
 }
 
 // ensureGroup 确保组存在，如果不存在则创建
-func (p *ResourceProcessor) ensureGroup(username string, groupSpec types.GroupSpec) (int, string, error) {
-	existingGroup, _ := p.Client.GetGroup(groupSpec.Path)
+func (p *ResourceProcessor) ensureGroup(username string, groupSpec types.GroupSpec, nameMode string) (int, string, error) {
+	// 根据 nameMode 生成实际的 group path
+	var actualGroupPath string
+	if nameMode == "name" {
+		// name 模式：直接使用配置文件中的名称
+		actualGroupPath = groupSpec.Path
+		if actualGroupPath == "" {
+			actualGroupPath = groupSpec.Name
+		}
+		log.Printf("    使用 name 模式，组 path: %s\n", actualGroupPath)
+	} else {
+		// prefix 模式：添加时间戳
+		if groupSpec.Path == "" {
+			actualGroupPath = utils.GenerateGroupPathWithTimestamp(groupSpec.Name)
+		} else {
+			actualGroupPath = utils.GenerateGroupPathWithTimestamp(groupSpec.Path)
+		}
+		log.Printf("    使用 prefix 模式，生成组 path: %s\n", actualGroupPath)
+	}
+
+	existingGroup, _ := p.Client.GetGroup(actualGroupPath)
 
 	if existingGroup != nil {
 		log.Printf("    ⚠ 组 '%s' 已存在 (ID: %d)\n", existingGroup.Path, existingGroup.ID)
 		return existingGroup.ID, existingGroup.Path, nil
 	}
 
-	log.Printf("    创建组: %s\n", groupSpec.Name)
+	log.Printf("    创建组: %s (path: %s)\n", groupSpec.Name, actualGroupPath)
 	group, err := p.Client.CreateGroup(
 		username,
 		groupSpec.Name,
-		groupSpec.Path,
+		actualGroupPath,
 		utils.GetVisibility(groupSpec.Visibility),
 	)
 	if err != nil {
@@ -177,11 +225,36 @@ func (p *ResourceProcessor) ensureGroup(username string, groupSpec types.GroupSp
 }
 
 // createProjectsWithOutput 创建多个项目并返回输出结果
-func (p *ResourceProcessor) createProjectsWithOutput(username string, groupID int, groupPath string, projects []types.ProjectSpec) ([]types.ProjectOutput, error) {
+func (p *ResourceProcessor) createProjectsWithOutput(username string, groupID int, groupPath string, projects []types.ProjectSpec, groupNameMode string) ([]types.ProjectOutput, error) {
 	var projectOutputs []types.ProjectOutput
 
 	for _, projSpec := range projects {
-		fullPath := fmt.Sprintf("%s/%s", groupPath, projSpec.Path)
+		// 确定项目的 nameMode（如果项目没有指定，则继承组的 nameMode）
+		projectNameMode := projSpec.NameMode
+		if projectNameMode == "" {
+			projectNameMode = groupNameMode
+		}
+
+		// 根据 nameMode 生成实际的 project path
+		var actualProjectPath string
+		if projectNameMode == "name" {
+			// name 模式：直接使用配置文件中的名称
+			actualProjectPath = projSpec.Path
+			if actualProjectPath == "" {
+				actualProjectPath = projSpec.Name
+			}
+			log.Printf("      使用 name 模式，项目 path: %s\n", actualProjectPath)
+		} else {
+			// prefix 模式：添加时间戳
+			if projSpec.Path == "" {
+				actualProjectPath = utils.GenerateProjectPathWithTimestamp(projSpec.Name)
+			} else {
+				actualProjectPath = utils.GenerateProjectPathWithTimestamp(projSpec.Path)
+			}
+			log.Printf("      使用 prefix 模式，生成项目 path: %s\n", actualProjectPath)
+		}
+
+		fullPath := fmt.Sprintf("%s/%s", groupPath, actualProjectPath)
 		existingProj, _ := p.Client.GetProject(fullPath)
 
 		var projectID int
@@ -192,12 +265,12 @@ func (p *ResourceProcessor) createProjectsWithOutput(username string, groupID in
 			projectID = existingProj.ID
 			webURL = existingProj.WebURL
 		} else {
-			log.Printf("      创建项目: %s\n", projSpec.Name)
+			log.Printf("      创建项目: %s (path: %s)\n", projSpec.Name, actualProjectPath)
 			project, err := p.Client.CreateProject(
 				username,
 				groupID,
 				projSpec.Name,
-				projSpec.Path,
+				actualProjectPath,
 				projSpec.Description,
 				utils.GetVisibility(projSpec.Visibility),
 			)
