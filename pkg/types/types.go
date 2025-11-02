@@ -50,6 +50,7 @@ type OutputConfig struct {
 	Endpoint string       `yaml:"endpoint"`
 	Scheme   string       `yaml:"scheme"`
 	Host     string       `yaml:"host"`
+	Port     int          `yaml:"port"`
 	Users    []UserOutput `yaml:"users"`
 }
 

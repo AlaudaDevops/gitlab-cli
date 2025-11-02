@@ -2,6 +2,7 @@ package cli
 
 import (
 	"log"
+	"strconv"
 	"strings"
 
 	"gitlab-cli-sdk/internal/config"
@@ -130,13 +131,14 @@ func runUserCreate(cfg *config.CLIConfig) error {
 
 	// 如果指定了输出文件，保存结果
 	if cfg.OutputFile != "" {
-		// 从 GitLabHost 解析 endpoint、scheme 和 host
-		endpoint, scheme, host := parseGitLabHostURL(cfg.GitLabHost)
+		// 从 GitLabHost 解析 endpoint、scheme、host 和 port
+		endpoint, scheme, host, port := parseGitLabHostURL(cfg.GitLabHost)
 
 		output := &types.OutputConfig{
 			Endpoint: endpoint,
 			Scheme:   scheme,
 			Host:     host,
+			Port:     port,
 			Users:    userOutputs,
 		}
 
@@ -214,9 +216,10 @@ func initializeClient(cfg *config.CLIConfig) (*client.GitLabClient, error) {
 }
 
 // parseGitLabHostURL 从 GitLab Host URL 解析出 endpoint、scheme 和 host
-func parseGitLabHostURL(gitlabHost string) (endpoint, scheme, host string) {
+func parseGitLabHostURL(gitlabHost string) (endpoint, scheme, host string, port int) {
 	// 默认值
 	scheme = "https"
+	port = 443
 	endpoint = gitlabHost
 
 	// 去除尾部斜杠
@@ -225,17 +228,37 @@ func parseGitLabHostURL(gitlabHost string) (endpoint, scheme, host string) {
 	// 检查是否包含 scheme
 	if strings.HasPrefix(endpoint, "http://") {
 		scheme = "http"
+		port = 80
 		host = strings.TrimPrefix(endpoint, "http://")
 	} else if strings.HasPrefix(endpoint, "https://") {
 		scheme = "https"
+		port = 443
 		host = strings.TrimPrefix(endpoint, "https://")
 	} else {
 		// 如果没有 scheme，则 host 就是原始的 endpoint
 		host = endpoint
 	}
 
-	// 重新添加 scheme 构造完整的 endpoint
-	endpoint = scheme + "://" + host
+	// 检查 host 中是否包含端口号
+	if strings.Contains(host, ":") {
+		parts := strings.Split(host, ":")
+		if len(parts) == 2 {
+			host = parts[0]
+			// 尝试解析端口号
+			if parsedPort, err := strconv.Atoi(parts[1]); err == nil {
+				port = parsedPort
+			}
+		}
+	}
 
-	return endpoint, scheme, host
+	// 重新添加 scheme 构造完整的 endpoint
+	if (scheme == "http" && port == 80) || (scheme == "https" && port == 443) {
+		// 默认端口，不需要在 endpoint 中显示
+		endpoint = scheme + "://" + host
+	} else {
+		// 非默认端口，需要在 endpoint 中显示
+		endpoint = scheme + "://" + host + ":" + strconv.Itoa(port)
+	}
+
+	return endpoint, scheme, host, port
 }

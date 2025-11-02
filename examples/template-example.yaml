@@ -1,6 +1,6 @@
 # GitLab CLI 输出模板示例
 # 支持 Go template 语法，可以访问 OutputConfig 结构中的所有数据
-# 数据结构: .Endpoint (完整 URL), .Scheme (http/https), .Host (主机名) 是 GitLab 服务器配置
+# 数据结构: .Endpoint (完整 URL), .Scheme (http/https), .Host (主机名), .Port (端口号) 是 GitLab 服务器配置
 # 数据结构: .Users[0] 包含 Username, Email, Name, UserID, Password, Token, Groups, Projects
 
 {{- range .Users }}
@@ -13,6 +13,8 @@ toolchains:
     # endpoint is the full endpoint of the server
     endpoint: {{ $.Endpoint }}
     host: {{ $.Host }}
+    # port number
+    port: {{ $.Port }}
     # scheme, http or https
     scheme: {{ $.Scheme }}
     # username, the user name of the login account
