@@ -609,3 +609,42 @@ func (p *ResourceProcessor) deleteUser(userID int, username string) error {
 
 	return nil
 }
+
+// ========================================
+// 用户删除流程（根据用户名）
+// ========================================
+
+// ProcessUserDelete 根据用户名删除用户及其所有资源
+func (p *ResourceProcessor) ProcessUserDelete(username string) error {
+	user, err := p.Client.GetUser(username)
+	if err != nil {
+		log.Printf("  ⚠ 检查用户失败: %v\n", err)
+		return nil
+	}
+
+	if user == nil {
+		log.Printf("  用户不存在，跳过: %s\n\n", username)
+		return nil
+	}
+
+	log.Printf("  找到用户 '%s' (ID: %d, 邮箱: %s)\n", user.Username, user.ID, user.Email)
+
+	// 1. 删除用户级项目（不属于任何组的项目）
+	log.Printf("  删除用户级项目...\n")
+	p.deleteUserProjects(username)
+
+	// 2. 删除用户拥有的所有组
+	p.deleteUserOwnedGroups(username)
+
+	// 3. 等待数据同步
+	log.Printf("  等待 GitLab 内部数据同步 (10秒)...\n")
+	time.Sleep(10 * time.Second)
+
+	// 4. 删除用户
+	if err := p.deleteUser(user.ID, username); err != nil {
+		log.Printf("  ⚠ 删除用户失败: %v\n\n", err)
+		return err
+	}
+
+	return nil
+}

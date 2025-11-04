@@ -48,6 +48,7 @@ func buildUserCommand(cfg *config.CLIConfig) *cobra.Command {
 
 	userCmd.AddCommand(buildUserCreateCommand(cfg))
 	userCmd.AddCommand(buildUserCleanupCommand(cfg))
+	userCmd.AddCommand(buildUserDeleteCommand(cfg))
 
 	return userCmd
 }
@@ -84,6 +85,32 @@ func buildUserCleanupCommand(cfg *config.CLIConfig) *cobra.Command {
 	cmd.Flags().StringVarP(&cfg.ConfigFile, "config", "f", "../test-users.yaml", "配置文件路径")
 	cmd.Flags().StringVar(&cfg.GitLabHost, "host", "", "GitLab 主机地址")
 	cmd.Flags().StringVar(&cfg.GitLabToken, "token", "", "GitLab Personal Access Token")
+
+	return cmd
+}
+
+// buildUserDeleteCommand 构建用户删除命令
+func buildUserDeleteCommand(cfg *config.CLIConfig) *cobra.Command {
+	var usernames string
+
+	cmd := &cobra.Command{
+		Use:   "delete",
+		Short: "删除指定用户名的用户及其项目和组",
+		Long: `根据用户名删除用户及其所有资源（项目和组）。
+支持删除多个用户，用户名之间用逗号分隔。
+
+示例:
+  gitlab-cli user delete --username user1
+  gitlab-cli user delete --username user1,user2,user3`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runUserDelete(cfg, usernames)
+		},
+	}
+
+	cmd.Flags().StringVar(&usernames, "username", "", "要删除的用户名（多个用户用逗号分隔）")
+	cmd.Flags().StringVar(&cfg.GitLabHost, "host", "", "GitLab 主机地址")
+	cmd.Flags().StringVar(&cfg.GitLabToken, "token", "", "GitLab Personal Access Token")
+	cmd.MarkFlagRequired("username")
 
 	return cmd
 }
@@ -192,6 +219,45 @@ func runUserCleanup(cfg *config.CLIConfig) error {
 
 	log.Println("========================================")
 	log.Println("✓ 批量清理完成")
+	log.Println("========================================")
+	return nil
+}
+
+// runUserDelete 执行用户删除命令
+func runUserDelete(cfg *config.CLIConfig, usernames string) error {
+	gitlabClient, err := initializeClient(cfg)
+	if err != nil {
+		return err
+	}
+
+	// 解析用户名列表（以逗号分隔）
+	usernameList := strings.Split(usernames, ",")
+	// 去除空格
+	for i, username := range usernameList {
+		usernameList[i] = strings.TrimSpace(username)
+	}
+
+	log.Printf("\n准备删除 %d 个用户\n\n", len(usernameList))
+
+	proc := &processor.ResourceProcessor{Client: gitlabClient}
+
+	for i, username := range usernameList {
+		if username == "" {
+			continue
+		}
+
+		log.Printf("==========================================\n")
+		log.Printf("处理 [%d/%d]: %s\n", i+1, len(usernameList), username)
+		log.Printf("==========================================\n")
+
+		if err := proc.ProcessUserDelete(username); err != nil {
+			log.Printf("  ⚠ 删除用户 %s 时出错: %v\n", username, err)
+			continue
+		}
+	}
+
+	log.Println("========================================")
+	log.Println("✓ 批量删除完成")
 	log.Println("========================================")
 	return nil
 }

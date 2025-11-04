@@ -80,6 +80,18 @@ export GITLAB_TOKEN=your-personal-access-token
 # 2. 清理时使用输出文件
 ./bin/gitlab-cli user cleanup \
   -f output.yaml
+
+# 根据用户名删除用户及其所有资源（项目和组）
+./bin/gitlab-cli user delete \
+  --host https://your-gitlab.com \
+  --token your-token \
+  --username user1
+
+# 删除多个用户（用逗号分隔）
+./bin/gitlab-cli user delete \
+  --host https://your-gitlab.com \
+  --token your-token \
+  --username user1,user2,user3
 ```
 
 ## 📖 配置文件示例
