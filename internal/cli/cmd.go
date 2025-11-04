@@ -110,7 +110,7 @@ func buildUserDeleteCommand(cfg *config.CLIConfig) *cobra.Command {
 	cmd.Flags().StringVar(&usernames, "username", "", "要删除的用户名（多个用户用逗号分隔）")
 	cmd.Flags().StringVar(&cfg.GitLabHost, "host", "", "GitLab 主机地址")
 	cmd.Flags().StringVar(&cfg.GitLabToken, "token", "", "GitLab Personal Access Token")
-	cmd.MarkFlagRequired("username")
+	_ = cmd.MarkFlagRequired("username")
 
 	return cmd
 }
