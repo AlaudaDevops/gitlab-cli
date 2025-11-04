@@ -15,7 +15,7 @@ make build
 
 ```bash
 # 设置环境变量
-export GITLAB_HOST=https://gitlab.example.com
+export GITLAB_URL=https://gitlab.example.com
 export GITLAB_TOKEN=glpat-your-token-here
 ```
 
@@ -83,7 +83,7 @@ users:
 #!/bin/bash
 
 # 1. 设置环境变量
-export GITLAB_HOST="${CI_GITLAB_HOST}"
+export GITLAB_URL="${CI_GITLAB_HOST}"
 export GITLAB_TOKEN="${CI_GITLAB_ADMIN_TOKEN}"
 
 # 2. 构建工具
@@ -105,7 +105,7 @@ make build
 #!/bin/bash
 
 # 开发环境配置
-export GITLAB_HOST=https://dev-gitlab.company.com
+export GITLAB_URL=https://dev-gitlab.company.com
 export GITLAB_TOKEN=$(cat ~/.gitlab-admin-token)
 
 # 构建最新版本

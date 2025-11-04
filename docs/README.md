@@ -32,7 +32,7 @@ go build -o bin/gitlab-cli ./cmd/gitlab-cli
 ### 2. 配置环境变量
 
 ```bash
-export GITLAB_HOST=https://gitlab.example.com
+export GITLAB_URL=https://gitlab.example.com
 export GITLAB_TOKEN=glpat-your-token-here
 ```
 
@@ -178,7 +178,7 @@ gitlab-cli-sdk/
 #!/bin/bash
 
 # 设置环境变量
-export GITLAB_HOST="${CI_GITLAB_HOST}"
+export GITLAB_URL="${CI_GITLAB_HOST}"
 export GITLAB_TOKEN="${CI_GITLAB_ADMIN_TOKEN}"
 
 # 构建工具

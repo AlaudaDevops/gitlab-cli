@@ -20,9 +20,9 @@ type CLIConfig struct {
 // LoadGitLabCredentials 从环境变量或命令行参数加载 GitLab 凭证
 func LoadGitLabCredentials(cfg *CLIConfig) error {
 	if cfg.GitLabHost == "" {
-		cfg.GitLabHost = os.Getenv("GITLAB_HOST")
+		cfg.GitLabHost = os.Getenv("GITLAB_URL")
 		if cfg.GitLabHost == "" {
-			return fmt.Errorf("GitLab host is required (use --host or GITLAB_HOST env)")
+			return fmt.Errorf("GitLab host is required (use --host or GITLAB_URL env)")
 		}
 	}
 	if cfg.GitLabToken == "" {

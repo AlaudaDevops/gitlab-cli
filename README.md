@@ -38,7 +38,7 @@ make install
 
 ```bash
 # 设置环境变量（可选）
-export GITLAB_HOST=https://your-gitlab-instance.com
+export GITLAB_URL=https://your-gitlab-instance.com
 export GITLAB_TOKEN=your-personal-access-token
 
 # 创建用户、组和项目
