@@ -308,6 +308,7 @@ func (p *ResourceProcessor) createUserProjectsWithOutput(username string, projec
 		projectOutputs = append(projectOutputs, types.ProjectOutput{
 			Name:        projSpec.Name,
 			Path:        fullPath,
+			ProjectPath: actualProjectPath,
 			ProjectID:   projectID,
 			Description: projSpec.Description,
 			Visibility:  projSpec.Visibility,
@@ -379,6 +380,7 @@ func (p *ResourceProcessor) createProjectsWithOutput(username string, groupID in
 		projectOutputs = append(projectOutputs, types.ProjectOutput{
 			Name:        projSpec.Name,
 			Path:        fullPath,
+			ProjectPath: actualProjectPath,
 			ProjectID:   projectID,
 			Description: projSpec.Description,
 			Visibility:  projSpec.Visibility,

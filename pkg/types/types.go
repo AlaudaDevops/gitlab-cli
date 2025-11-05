@@ -85,7 +85,8 @@ type GroupOutput struct {
 // ProjectOutput 项目输出结果
 type ProjectOutput struct {
 	Name        string `yaml:"name"`
-	Path        string `yaml:"path"`
+	Path        string `yaml:"path"`         // 完整路径，如 group/project 或 username/project
+	ProjectPath string `yaml:"project_path"` // 项目本身的路径，不包含 group 或 username
 	ProjectID   int    `yaml:"project_id"`
 	Description string `yaml:"description"`
 	Visibility  string `yaml:"visibility"`

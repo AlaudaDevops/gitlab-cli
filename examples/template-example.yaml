@@ -45,6 +45,8 @@ toolchains:
         projects:
           {{- range .Projects }}
           - name: {{ .Name }}
+            path: {{ .Path }}              # 完整路径，如 group/project
+            project_path: {{ .ProjectPath }} # 项目本身的路径，不含 group
           {{- end }}
         {{- end }}
       {{- end }}

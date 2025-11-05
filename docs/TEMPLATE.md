@@ -30,6 +30,23 @@ GitLab CLI 支持使用自定义模板来格式化输出结果，让你可以按
 
 模板使用 Go 的 `text/template` 语法，支持访问以下数据结构：
 
+### 重要说明：Path 与 ProjectPath 字段
+
+在输出数据中，项目有两个路径字段：
+
+- **Path**: 完整路径，包含 group 或 username 前缀
+  - 组级项目：`backend-group-20251105112212/demo-20251105112213`
+  - 用户级项目：`tektoncd-20251105112211/my-personal-project-20251105112216`
+
+- **ProjectPath**: 项目本身的路径，不包含前缀
+  - 组级项目：`demo-20251105112213`
+  - 用户级项目：`my-personal-project-20251105112216`
+
+**关于时间戳后缀**：
+- 当使用 `nameMode: prefix` 时（默认），路径会自动添加时间戳后缀
+- 当使用 `nameMode: name` 时，路径保持与配置文件中一致，不添加时间戳
+- **注意**：nameMode 只影响路径（Path），不影响项目的显示名称（Name）
+
 ### 可用数据
 
 ```go
@@ -50,14 +67,16 @@ GitLab CLI 支持使用自定义模板来格式化输出结果，让你可以按
   │   ├── .Visibility // 可见性
   │   └── .Projects   // 组下的项目数组
   │       ├── .Name        // 项目名
-  │       ├── .Path        // 项目路径
+  │       ├── .Path        // 完整路径，如 group/project
+  │       ├── .ProjectPath // 项目本身的路径，不含 group
   │       ├── .ProjectID   // 项目 ID
   │       ├── .Description // 描述
   │       ├── .Visibility  // 可见性
   │       └── .WebURL      // Web URL
   └── .Projects      // 用户级项目数组（不属于任何组）
       ├── .Name        // 项目名
-      ├── .Path        // 项目路径
+      ├── .Path        // 完整路径，如 username/project
+      ├── .ProjectPath // 项目本身的路径，不含 username
       ├── .ProjectID   // 项目 ID
       ├── .Description // 描述
       ├── .Visibility  // 可见性
@@ -175,6 +194,8 @@ toolchains:
         projects:
           {{- range .Projects }}
           - name: {{ .Name }}
+            path: {{ .Path }}              # 完整路径，如 group/project
+            project_path: {{ .ProjectPath }} # 项目本身的路径，不含 group
             project_id: {{ .ProjectID }}
             web_url: {{ .WebURL }}
           {{- end }}
