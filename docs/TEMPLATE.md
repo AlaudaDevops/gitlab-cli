@@ -50,14 +50,16 @@ GitLab CLI 支持使用自定义模板来格式化输出结果，让你可以按
   │   ├── .Visibility // 可见性
   │   └── .Projects   // 组下的项目数组
   │       ├── .Name        // 项目名
-  │       ├── .Path        // 项目路径
+  │       ├── .Path        // 完整路径，如 group/project
+  │       ├── .ProjectPath // 项目本身的路径，不含 group
   │       ├── .ProjectID   // 项目 ID
   │       ├── .Description // 描述
   │       ├── .Visibility  // 可见性
   │       └── .WebURL      // Web URL
   └── .Projects      // 用户级项目数组（不属于任何组）
       ├── .Name        // 项目名
-      ├── .Path        // 项目路径
+      ├── .Path        // 完整路径，如 username/project
+      ├── .ProjectPath // 项目本身的路径，不含 username
       ├── .ProjectID   // 项目 ID
       ├── .Description // 描述
       ├── .Visibility  // 可见性
@@ -175,6 +177,8 @@ toolchains:
         projects:
           {{- range .Projects }}
           - name: {{ .Name }}
+            path: {{ .Path }}              # 完整路径，如 group/project
+            project_path: {{ .ProjectPath }} # 项目本身的路径，不含 group
             project_id: {{ .ProjectID }}
             web_url: {{ .WebURL }}
           {{- end }}
