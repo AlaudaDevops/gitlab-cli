@@ -15,6 +15,7 @@ type CLIConfig struct {
 	GitLabToken  string
 	OutputFile   string // 输出文件路径
 	TemplateFile string // 模板文件路径
+	DaysOld      int    // 只删除创建日期超过指定天数的用户（cleanup 命令使用）
 }
 
 // LoadGitLabCredentials 从环境变量或命令行参数加载 GitLab 凭证

@@ -254,3 +254,40 @@ func (c *GitLabClient) CreatePersonalAccessToken(userID int, name string, scopes
 	// 返回 token 的 value
 	return token.Token, nil
 }
+
+// ListAllUsers 列出所有用户（支持搜索过滤）
+func (c *GitLabClient) ListAllUsers(searchPrefix string) ([]*gitlab.User, error) {
+	var allUsers []*gitlab.User
+	page := 1
+	perPage := 100
+
+	for {
+		opts := &gitlab.ListUsersOptions{
+			ListOptions: gitlab.ListOptions{
+				Page:    page,
+				PerPage: perPage,
+			},
+		}
+
+		// 如果指定了搜索前缀，添加搜索条件
+		if searchPrefix != "" {
+			opts.Search = gitlab.Ptr(searchPrefix)
+		}
+
+		users, resp, err := c.client.Users.ListUsers(opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list users: %w", err)
+		}
+
+		allUsers = append(allUsers, users...)
+
+		// 如果没有更多页面，退出循环
+		if resp.NextPage == 0 {
+			break
+		}
+
+		page = resp.NextPage
+	}
+
+	return allUsers, nil
+}

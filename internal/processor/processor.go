@@ -395,19 +395,39 @@ func (p *ResourceProcessor) createProjectsWithOutput(username string, groupID in
 // ========================================
 
 // ProcessUserCleanup 处理单个用户的清理流程
-func (p *ResourceProcessor) ProcessUserCleanup(userSpec types.UserSpec) error {
+// 返回 (deleted bool, error): deleted 表示是否实际删除了用户
+func (p *ResourceProcessor) ProcessUserCleanup(userSpec types.UserSpec, daysOld int) (bool, error) {
 	user, err := p.Client.GetUser(userSpec.Username)
 	if err != nil {
 		log.Printf("  ⚠ 检查用户失败: %v\n", err)
-		return nil
+		return false, nil
 	}
 
 	if user == nil {
 		log.Printf("  用户不存在，跳过: %s\n\n", userSpec.Username)
-		return nil
+		return false, nil
 	}
 
 	log.Printf("  找到用户 '%s' (ID: %d, 邮箱: %s)\n", user.Username, user.ID, user.Email)
+
+	// 检查用户创建日期
+	if daysOld > 0 {
+		if user.CreatedAt == nil {
+			log.Printf("  ⚠ 无法获取用户创建时间，跳过删除\n\n")
+			return false, nil
+		}
+
+		createdAt := *user.CreatedAt
+		daysSinceCreation := int(time.Since(createdAt).Hours() / 24)
+		log.Printf("  用户创建于: %s (%d 天前)\n", createdAt.Format("2006-01-02 15:04:05"), daysSinceCreation)
+
+		if daysSinceCreation < daysOld {
+			log.Printf("  ⚠ 用户创建时间未超过 %d 天，跳过删除\n\n", daysOld)
+			return false, nil
+		}
+
+		log.Printf("  ✓ 用户创建时间已超过 %d 天，将进行删除\n", daysOld)
+	}
 
 	// 1. 删除用户级项目（不属于任何组的项目）
 	if len(userSpec.Projects) > 0 {
@@ -436,10 +456,10 @@ func (p *ResourceProcessor) ProcessUserCleanup(userSpec types.UserSpec) error {
 	// 4. 删除用户
 	if err := p.deleteUser(user.ID, userSpec.Username); err != nil {
 		log.Printf("  ⚠ 删除用户失败: %v\n\n", err)
-		return err
+		return false, err
 	}
 
-	return nil
+	return true, nil
 }
 
 // deleteUserProjects 删除用户级项目
