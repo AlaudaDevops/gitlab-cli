@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -71,6 +72,7 @@ func buildUserCreateCommand(cfg *config.CLIConfig) *cobra.Command {
 	cmd.Flags().StringVarP(&cfg.ConfigFile, "config", "f", "../test-users.yaml", "配置文件路径")
 	cmd.Flags().StringVar(&cfg.GitLabHost, "host", "", "GitLab 主机地址")
 	cmd.Flags().StringVar(&cfg.GitLabToken, "token", "", "GitLab Personal Access Token")
+	cmd.Flags().StringVar(&cfg.GitLabSSHEndpoint, "ssh-endpoint", "", "GitLab SSH endpoint (e.g., ssh://git@host:22)")
 	cmd.Flags().StringVarP(&cfg.OutputFile, "output", "o", "", "输出结果到 YAML 文件")
 	cmd.Flags().StringVarP(&cfg.TemplateFile, "template", "t", "", "使用模板文件格式化输出")
 
@@ -175,11 +177,25 @@ func runUserCreate(cfg *config.CLIConfig) error {
 		// 从 GitLabHost 解析 endpoint、scheme、host 和 port
 		endpoint, scheme, host, port := parseGitLabHostURL(cfg.GitLabHost)
 
+		// Parse SSH endpoint information for template rendering
+		sshEndpoint, sshHost, sshPort := parseGitLabSSHEndpoint(cfg.GitLabSSHEndpoint)
+
+		// sshConfig holds parsed SSH endpoint details when available
+		var sshConfig *types.SSHConfig
+		if sshEndpoint != "" {
+			sshConfig = &types.SSHConfig{
+				Endpoint: sshEndpoint,
+				Host:     sshHost,
+				Port:     sshPort,
+			}
+		}
+
 		output := &types.OutputConfig{
 			Endpoint: endpoint,
 			Scheme:   scheme,
 			Host:     host,
 			Port:     port,
+			SSH:      sshConfig,
 			Users:    userOutputs,
 		}
 
@@ -493,6 +509,51 @@ func initializeClient(cfg *config.CLIConfig) (*client.GitLabClient, error) {
 	}
 
 	return gitlabClient, nil
+}
+
+// parseGitLabSSHEndpoint extracts endpoint, host, and port from the SSH URL string
+func parseGitLabSSHEndpoint(rawEndpoint string) (endpoint, host string, port int) {
+	// trimmedEndpoint stores the SSH endpoint without trailing slash or spaces
+	trimmedEndpoint := strings.TrimSpace(rawEndpoint)
+	if trimmedEndpoint == "" {
+		return "", "", 0
+	}
+
+	// normalizedEndpoint ensures the SSH URL includes a scheme for parsing
+	normalizedEndpoint := strings.TrimSuffix(trimmedEndpoint, "/")
+	if !strings.Contains(normalizedEndpoint, "://") {
+		normalizedEndpoint = "ssh://" + normalizedEndpoint
+	}
+
+	// parsedURL holds the parsed SSH URL result
+	parsedURL, err := url.Parse(normalizedEndpoint)
+	if err != nil {
+		return normalizedEndpoint, "", 0
+	}
+
+	// hostName captures the hostname portion of the SSH URL
+	hostName := parsedURL.Hostname()
+	// portNumber defaults to standard SSH port
+	portNumber := 22
+	if parsedURL.Port() != "" {
+		if parsedPort, err := strconv.Atoi(parsedURL.Port()); err == nil {
+			portNumber = parsedPort
+		} else {
+			portNumber = 0
+		}
+	}
+
+	// endpointBuilder rebuilds the endpoint including user info when available
+	endpointBuilder := parsedURL.Scheme + "://"
+	if parsedURL.User != nil {
+		endpointBuilder += parsedURL.User.String() + "@"
+	}
+	endpointBuilder += hostName
+	if portNumber > 0 {
+		endpointBuilder += ":" + strconv.Itoa(portNumber)
+	}
+
+	return endpointBuilder, hostName, portNumber
 }
 
 // parseGitLabHostURL 从 GitLab Host URL 解析出 endpoint、scheme 和 host

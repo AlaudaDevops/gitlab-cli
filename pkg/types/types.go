@@ -45,13 +45,21 @@ type ProjectSpec struct {
 // 输出结果类型
 // ========================================
 
+// SSHConfig captures parsed SSH endpoint information
+type SSHConfig struct {
+	Endpoint string `yaml:"endpoint"` // Endpoint is the normalized SSH endpoint string
+	Host     string `yaml:"host"`     // Host is the SSH hostname extracted from the endpoint
+	Port     int    `yaml:"port"`     // Port is the SSH port number
+}
+
 // OutputConfig 输出配置结构
 type OutputConfig struct {
-	Endpoint string       `yaml:"endpoint"`
-	Scheme   string       `yaml:"scheme"`
-	Host     string       `yaml:"host"`
-	Port     int          `yaml:"port"`
-	Users    []UserOutput `yaml:"users"`
+	Endpoint string       `yaml:"endpoint"`      // Endpoint is the normalized HTTP endpoint of GitLab
+	Scheme   string       `yaml:"scheme"`        // Scheme is the HTTP scheme of the GitLab endpoint
+	Host     string       `yaml:"host"`          // Host is the hostname of the GitLab endpoint
+	Port     int          `yaml:"port"`          // Port is the HTTP port of the GitLab endpoint
+	SSH      *SSHConfig   `yaml:"ssh,omitempty"` // SSH holds parsed SSH endpoint details when available
+	Users    []UserOutput `yaml:"users"`         // Users carries all generated user outputs
 }
 
 // UserOutput 用户输出结果

@@ -10,12 +10,13 @@ import (
 
 // CLIConfig 封装CLI配置参数
 type CLIConfig struct {
-	ConfigFile   string
-	GitLabHost   string
-	GitLabToken  string
-	OutputFile   string // 输出文件路径
-	TemplateFile string // 模板文件路径
-	DaysOld      int    // 只删除创建日期超过指定天数的用户（cleanup 命令使用）
+	ConfigFile        string
+	GitLabHost        string
+	GitLabToken       string
+	OutputFile        string // 输出文件路径
+	TemplateFile      string // 模板文件路径
+	DaysOld           int    // 只删除创建日期超过指定天数的用户（cleanup 命令使用）
+	GitLabSSHEndpoint string // GitLab SSH endpoint (e.g., ssh://git@host:22)
 }
 
 // LoadGitLabCredentials 从环境变量或命令行参数加载 GitLab 凭证
@@ -31,6 +32,10 @@ func LoadGitLabCredentials(cfg *CLIConfig) error {
 		if cfg.GitLabToken == "" {
 			return fmt.Errorf("GitLab token is required (use --token or GITLAB_TOKEN env)")
 		}
+	}
+	// Populate SSH endpoint from environment when flag is not provided
+	if cfg.GitLabSSHEndpoint == "" {
+		cfg.GitLabSSHEndpoint = os.Getenv("GITLAB_SSH_ENDPOINT")
 	}
 	return nil
 }
