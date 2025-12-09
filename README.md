@@ -40,6 +40,8 @@ make install
 # Set environment variables (optional)
 export GITLAB_URL=https://your-gitlab-instance.com
 export GITLAB_TOKEN=your-personal-access-token
+# Optional: SSH endpoint for clone/push templates
+export GITLAB_SSH_ENDPOINT=ssh://git@your-gitlab.com:ssh-port
 
 # Create user, groups, and projects
 ./bin/gitlab-cli user create \
@@ -58,6 +60,7 @@ export GITLAB_TOKEN=your-personal-access-token
 ./bin/gitlab-cli user create \
   --host https://your-gitlab.com \
   --token your-token \
+  --ssh-endpoint ssh://git@your-gitlab.com:ssh-port \
   -f config.yaml \
   -o output.yaml \
   -t template.yaml
@@ -216,6 +219,7 @@ token:
 ```
 
 Output contains all created resource information:
+- GitLab endpoint info: endpoint, scheme, host, port, ssh (endpoint/host/port when provided)
 - User info: username, email, name, user_id, password
 - Token info: value, scope, expires_at (if token is configured)
 - Group info: name, path, group_id, visibility (if groups are configured)
@@ -224,6 +228,14 @@ Output contains all created resource information:
 Output format:
 
 ```yaml
+endpoint: https://your-gitlab.com
+scheme: https
+host: your-gitlab.com
+port: 443
+ssh:
+  endpoint: ssh://git@your-gitlab.com:ssh-port
+  host: your-gitlab.com
+  port: ssh-port
 users:
   - username: tektoncd
     email: tektoncd001@test.example.com
@@ -299,6 +311,12 @@ toolchains:
     endpoint: {{ $.Endpoint }}
     host: {{ $.Host }}
     scheme: {{ $.Scheme }}
+    {{- if $.SSH }}
+    ssh:
+      endpoint: {{ $.SSH.Endpoint }}
+      host: {{ $.SSH.Host }}
+      port: {{ $.SSH.Port }}
+    {{- end }}
     # User information
     username: {{ .Username }}
     email: {{ .Email }}
@@ -325,6 +343,7 @@ toolchains:
 
 **Template Notes:**
 - `default: {{ .Username }}` - Specifies the default group, newly created projects will use this username as the namespace by default
+- `.SSH` is available when `--ssh-endpoint` or `GITLAB_SSH_ENDPOINT` is provided, useful for clone/push configs
 
 Using the template:
 
