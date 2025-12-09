@@ -41,7 +41,7 @@ make install
 export GITLAB_URL=https://your-gitlab-instance.com
 export GITLAB_TOKEN=your-personal-access-token
 # Optional: SSH endpoint for clone/push templates
-export GITLAB_SSH_ENDPOINT=ssh://git@192.168.162.156:30001
+export GITLAB_SSH_ENDPOINT=ssh://git@your-gitlab.com:ssh-port
 
 # Create user, groups, and projects
 ./bin/gitlab-cli user create \
@@ -60,7 +60,7 @@ export GITLAB_SSH_ENDPOINT=ssh://git@192.168.162.156:30001
 ./bin/gitlab-cli user create \
   --host https://your-gitlab.com \
   --token your-token \
-  --ssh-endpoint ssh://git@your-gitlab.com:22 \
+  --ssh-endpoint ssh://git@your-gitlab.com:ssh-port \
   -f config.yaml \
   -o output.yaml \
   -t template.yaml
@@ -233,9 +233,9 @@ scheme: https
 host: your-gitlab.com
 port: 443
 ssh:
-  endpoint: ssh://git@your-gitlab.com:22
+  endpoint: ssh://git@your-gitlab.com:ssh-port
   host: your-gitlab.com
-  port: 22
+  port: ssh-port
 users:
   - username: tektoncd
     email: tektoncd001@test.example.com
