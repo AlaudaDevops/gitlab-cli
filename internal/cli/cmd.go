@@ -135,6 +135,7 @@ func runUserCreate(cfg *config.CLIConfig) error {
 	if err != nil {
 		return err
 	}
+	defer gitlabClient.CloseIdleConnections()
 
 	userConfig, err := config.Load(cfg.ConfigFile)
 	if err != nil {
@@ -210,6 +211,7 @@ func runUserCleanup(cfg *config.CLIConfig) error {
 	if err != nil {
 		return err
 	}
+	defer gitlabClient.CloseIdleConnections()
 
 	userConfig, err := config.Load(cfg.ConfigFile)
 	if err != nil {
@@ -258,6 +260,7 @@ func runUserDelete(cfg *config.CLIConfig, usernames string) error {
 	if err != nil {
 		return err
 	}
+	defer gitlabClient.CloseIdleConnections()
 
 	// 解析用户名列表（以逗号分隔）
 	usernameList := strings.Split(usernames, ",")
@@ -354,6 +357,7 @@ func runUserList(cfg *config.CLIConfig, searchPrefix string) error {
 	if err != nil {
 		return err
 	}
+	defer gitlabClient.CloseIdleConnections()
 
 	log.Printf("\n正在获取用户列表...\n")
 	if searchPrefix != "" {
@@ -382,6 +386,7 @@ func runUserDeleteByPrefix(cfg *config.CLIConfig, prefix string, dryRun bool) er
 	if err != nil {
 		return err
 	}
+	defer gitlabClient.CloseIdleConnections()
 
 	log.Printf("\n正在搜索用户名以 '%s' 开头的用户...\n", prefix)
 
