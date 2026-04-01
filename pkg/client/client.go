@@ -24,6 +24,11 @@ func NewGitLabClient(host, token string) (*GitLabClient, error) {
 	}, nil
 }
 
+// CloseIdleConnections 关闭空闲连接，防止程序退出时卡住
+func (c *GitLabClient) CloseIdleConnections() {
+	c.client.HTTPClient().CloseIdleConnections()
+}
+
 // CheckAuth 检查认证和管理员权限
 func (c *GitLabClient) CheckAuth() error {
 	user, _, err := c.client.Users.CurrentUser()
