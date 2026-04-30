@@ -49,6 +49,13 @@ export GITLAB_SSH_ENDPOINT=ssh://git@your-gitlab.com:ssh-port
   --token your-token \
   -f config.yaml
 
+# Optional: specify a fixed suffix in prefix mode
+./bin/gitlab-cli user create \
+  --host https://your-gitlab.com \
+  --token your-token \
+  --suffix ci01 \
+  -f config.yaml
+
 # Output results to file
 ./bin/gitlab-cli user create \
   --host https://your-gitlab.com \
@@ -72,8 +79,8 @@ export GITLAB_SSH_ENDPOINT=ssh://git@your-gitlab.com:ssh-port
   -f config.yaml
 
 # ⚠️ Note: Cleanup with prefix mode
-# When using nameMode: prefix (adds timestamp), cleanup requires the output file from creation
-# Because actual usernames, group names, and project names all include timestamps
+# When using nameMode: prefix (adds millisecond timestamp + suffix), cleanup requires the output file from creation
+# Because actual usernames, group names, and project names include generated suffixes
 
 # 1. Save output file during creation
 ./bin/gitlab-cli user create \
@@ -104,8 +111,10 @@ export GITLAB_SSH_ENDPOINT=ssh://git@your-gitlab.com:ssh-port
 The configuration file supports two naming modes:
 
 **1. prefix mode (default)**
-- Automatically appends timestamps to username, email, group path, and project path
-- Example: `tektoncd` → `tektoncd-20251030150000`
+- Automatically appends `millisecond timestamp + suffix` to username, email, group path, and project path
+- Default format: `<yyyyMMddHHmmssSSS>-<random4>`
+- Example: `tektoncd` → `tektoncd-20251030150000123-a1b2`
+- Optional override: use `--suffix <value>` to replace the random suffix
 - Use cases: Test environments, creating multiple similar resources
 - ⚠️ Cleanup must use the output file from creation
 

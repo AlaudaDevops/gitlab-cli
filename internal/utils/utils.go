@@ -1,13 +1,24 @@
 package utils
 
 import (
+	"crypto/rand"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 )
 
-// GetVisibility 获取可见性设置，默认为 private
+const (
+	// defaultRandomSuffixLength controls the random suffix length when no custom suffix is provided.
+	defaultRandomSuffixLength = 4
+)
+
+var (
+	// shortSuffixAlphabet contains safe characters for username/email/path suffixes.
+	shortSuffixAlphabet = []byte("abcdefghijklmnopqrstuvwxyz0123456789")
+)
+
+// GetVisibility returns the visibility value, defaulting to private.
 func GetVisibility(v string) string {
 	if v == "" {
 		return "private"
@@ -15,86 +26,126 @@ func GetVisibility(v string) string {
 	return v
 }
 
-// GenerateTimestampSuffix 生成时间戳后缀（格式：20060102150405）
+// GenerateTimestampSuffix returns a millisecond-level timestamp suffix in yyyyMMddHHmmssSSS format.
 func GenerateTimestampSuffix() string {
-	return time.Now().Format("20060102150405")
+	now := time.Now()
+	millisecond := now.Nanosecond() / int(time.Millisecond)
+	return fmt.Sprintf("%s%03d", now.Format("20060102150405"), millisecond)
 }
 
-// GenerateUsernameWithTimestamp 基于前缀生成符合 GitLab 要求的 username
-// 格式：prefix-timestamp
-func GenerateUsernameWithTimestamp(prefix string) string {
-	timestamp := GenerateTimestampSuffix()
-	username := fmt.Sprintf("%s-%s", prefix, timestamp)
-	// 确保符合 GitLab username 规则：只能包含字母、数字、下划线、点号、破折号
+// GenerateTemporalSuffix returns a unique suffix in the format timestamp-randomOrCustom.
+func GenerateTemporalSuffix(customSuffix string) string {
+	normalizedSuffix := normalizeCustomSuffix(customSuffix)
+	if normalizedSuffix == "" {
+		normalizedSuffix = generateShortRandomSuffix(defaultRandomSuffixLength)
+	}
+	return fmt.Sprintf("%s-%s", GenerateTimestampSuffix(), normalizedSuffix)
+}
+
+// GenerateUsernameWithTimestamp builds a GitLab-safe username as prefix-temporalSuffix.
+func GenerateUsernameWithTimestamp(prefix, customSuffix string) string {
+	temporalSuffix := GenerateTemporalSuffix(customSuffix)
+	username := fmt.Sprintf("%s-%s", prefix, temporalSuffix)
+	// Ensure username follows GitLab username rules.
 	username = sanitizeUsername(username)
-	// 限制长度为 255
+	// Enforce GitLab username max length.
 	if len(username) > 255 {
 		username = username[:255]
 	}
 	return username
 }
 
-// GenerateEmailWithTimestamp 基于前缀生成唯一的 email
-// 格式：prefix-timestamp@domain
-func GenerateEmailWithTimestamp(emailPrefix string) string {
-	// 解析邮箱前缀和域名
+// GenerateEmailWithTimestamp builds an email as localPart-temporalSuffix@domain.
+func GenerateEmailWithTimestamp(emailPrefix, customSuffix string) string {
+	// Split local part and domain.
 	parts := strings.Split(emailPrefix, "@")
 	if len(parts) != 2 {
-		// 如果不是有效的邮箱格式，使用默认域名
-		return fmt.Sprintf("%s-%s@test.example.com", emailPrefix, GenerateTimestampSuffix())
+		// Fall back to a default test domain when input is not an email.
+		return fmt.Sprintf("%s-%s@test.example.com", emailPrefix, GenerateTemporalSuffix(customSuffix))
 	}
 
 	localPart := parts[0]
 	domain := parts[1]
-	timestamp := GenerateTimestampSuffix()
+	temporalSuffix := GenerateTemporalSuffix(customSuffix)
 
-	return fmt.Sprintf("%s-%s@%s", localPart, timestamp, domain)
+	return fmt.Sprintf("%s-%s@%s", localPart, temporalSuffix, domain)
 }
 
-// GenerateGroupPathWithTimestamp 基于前缀生成符合 GitLab 要求的 group path
-// 格式：prefix-timestamp
-func GenerateGroupPathWithTimestamp(prefix string) string {
-	timestamp := GenerateTimestampSuffix()
-	path := fmt.Sprintf("%s-%s", prefix, timestamp)
-	// 确保符合 GitLab group path 规则：只能包含小写字母、数字、下划线、破折号
+// GenerateGroupPathWithTimestamp builds a GitLab-safe group path as prefix-temporalSuffix.
+func GenerateGroupPathWithTimestamp(prefix, customSuffix string) string {
+	temporalSuffix := GenerateTemporalSuffix(customSuffix)
+	path := fmt.Sprintf("%s-%s", prefix, temporalSuffix)
+	// Ensure path follows GitLab group path rules.
 	path = sanitizeGroupPath(path)
-	// 限制长度为 255
+	// Enforce GitLab path max length.
 	if len(path) > 255 {
 		path = path[:255]
 	}
 	return path
 }
 
-// GenerateProjectPathWithTimestamp 基于前缀生成符合 GitLab 要求的 project path
-// 格式：prefix-timestamp（项目 path 规则与组 path 相同）
-func GenerateProjectPathWithTimestamp(prefix string) string {
-	return GenerateGroupPathWithTimestamp(prefix)
+// GenerateProjectPathWithTimestamp builds a GitLab-safe project path as prefix-temporalSuffix.
+func GenerateProjectPathWithTimestamp(prefix, customSuffix string) string {
+	return GenerateGroupPathWithTimestamp(prefix, customSuffix)
 }
 
-// sanitizeUsername 清理 username，确保符合 GitLab 规则
-// 允许：字母、数字、下划线、点号、破折号
+// normalizeCustomSuffix sanitizes a custom suffix to safe characters and lowercase.
+func normalizeCustomSuffix(customSuffix string) string {
+	trimmedSuffix := strings.TrimSpace(customSuffix)
+	if trimmedSuffix == "" {
+		return ""
+	}
+
+	safeSuffix := regexp.MustCompile(`[^a-zA-Z0-9_-]`).ReplaceAllString(trimmedSuffix, "")
+	return strings.ToLower(safeSuffix)
+}
+
+// generateShortRandomSuffix returns a random lowercase alphanumeric suffix.
+func generateShortRandomSuffix(length int) string {
+	if length <= 0 {
+		length = defaultRandomSuffixLength
+	}
+
+	rawRandomBytes := make([]byte, length)
+	_, randomErr := rand.Read(rawRandomBytes)
+	if randomErr != nil {
+		fallbackFromTime := fmt.Sprintf("%d", time.Now().UnixNano())
+		if len(fallbackFromTime) > length {
+			return fallbackFromTime[len(fallbackFromTime)-length:]
+		}
+		return fallbackFromTime
+	}
+
+	randomSuffix := make([]byte, length)
+	for i := range rawRandomBytes {
+		randomSuffix[i] = shortSuffixAlphabet[int(rawRandomBytes[i])%len(shortSuffixAlphabet)]
+	}
+
+	return string(randomSuffix)
+}
+
+// sanitizeUsername sanitizes username to comply with GitLab username rules.
 func sanitizeUsername(username string) string {
-	// 移除不允许的字符
+	// Remove unsupported characters.
 	reg := regexp.MustCompile(`[^a-zA-Z0-9_.-]`)
 	username = reg.ReplaceAllString(username, "")
 
-	// 确保不以破折号或点号开头/结尾
+	// Ensure username does not start/end with hyphen or dot.
 	username = strings.Trim(username, "-.")
 
 	return username
 }
 
-// sanitizeGroupPath 清理 group path，确保符合 GitLab 规则
-// 允许：小写字母、数字、下划线、破折号
+// sanitizeGroupPath sanitizes group/project path to comply with GitLab path rules.
 func sanitizeGroupPath(path string) string {
-	// 转换为小写
+	// Normalize to lowercase.
 	path = strings.ToLower(path)
 
-	// 移除不允许的字符
+	// Remove unsupported characters.
 	reg := regexp.MustCompile(`[^a-z0-9_-]`)
 	path = reg.ReplaceAllString(path, "")
 
-	// 确保不以破折号开头/结尾
+	// Ensure path does not start/end with hyphen.
 	path = strings.Trim(path, "-")
 
 	return path
