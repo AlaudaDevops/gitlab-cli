@@ -84,7 +84,7 @@ The codebase follows a strict layered architecture (top to bottom):
   - `internal/config`: Configuration loading and credential management
   - `internal/processor`: Business logic for creating/deleting resources
   - `internal/template`: Go template rendering for custom output
-  - `internal/utils`: Utility functions (timestamp generation, visibility conversion)
+  - `internal/utils`: Utility functions (millisecond timestamp + suffix generation, visibility conversion)
 
 - **`pkg/`**: Public packages that can be imported by external projects
   - `pkg/client`: GitLab API client wrapper (built on official SDK)
@@ -112,8 +112,8 @@ The codebase follows a strict layered architecture (top to bottom):
 
 The tool supports two naming modes for resources:
 
-- **`prefix` mode (default)**: Appends timestamp to username/email/group/project paths
-  - Example: `tektoncd` → `tektoncd-20251030150000`
+- **`prefix` mode (default)**: Appends `millisecond timestamp + suffix` to username/email/group/project paths
+  - Example: `tektoncd` → `tektoncd-20251030150000123-a1b2`
   - Used for test environments and creating multiple similar resources
   - **Important**: Cleanup must use the output file from creation (not config file)
 

@@ -21,6 +21,7 @@ GitLab CLI 支持使用自定义模板来格式化输出结果，让你可以按
 - `-f, --config`: 输入配置文件（用户、组、项目定义）
 - `-o, --output`: 输出文件路径
 - `-t, --template`: 模板文件路径（可选）
+- `--suffix`: Optional custom suffix used in `nameMode: prefix` (replaces random suffix part)
 
 **注意**:
 - 如果不指定 `--template`，将使用默认的 YAML 格式输出
@@ -35,17 +36,17 @@ GitLab CLI 支持使用自定义模板来格式化输出结果，让你可以按
 在输出数据中，项目有两个路径字段：
 
 - **Path**: 完整路径，包含 group 或 username 前缀
-  - 组级项目：`backend-group-20251105112212/demo-20251105112213`
-  - 用户级项目：`tektoncd-20251105112211/my-personal-project-20251105112216`
+  - 组级项目：`backend-group-20251105112212123-a1b2/demo-20251105112213123-c3d4`
+  - 用户级项目：`tektoncd-20251105112211123-a1b2/my-personal-project-20251105112216123-c3d4`
 
 - **ProjectPath**: 项目本身的路径，不包含前缀
-  - 组级项目：`demo-20251105112213`
-  - 用户级项目：`my-personal-project-20251105112216`
+  - 组级项目：`demo-20251105112213123-c3d4`
+  - 用户级项目：`my-personal-project-20251105112216123-c3d4`
 
 **关于时间戳后缀**：
-- 当使用 `nameMode: prefix` 时（默认），路径会自动添加时间戳后缀
-- 当使用 `nameMode: name` 时，路径保持与配置文件中一致，不添加时间戳
-- **注意**：nameMode 只影响路径（Path），不影响项目的显示名称（Name）
+- When `nameMode: prefix` is used (default), paths automatically append `millisecond timestamp + suffix`
+- When `nameMode: name` is used, paths stay exactly as configured
+- `nameMode` only affects path fields (`Path` / `ProjectPath`), not display names (`Name`)
 
 ### 可用数据
 

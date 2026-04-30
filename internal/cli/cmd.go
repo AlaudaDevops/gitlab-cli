@@ -75,6 +75,7 @@ func buildUserCreateCommand(cfg *config.CLIConfig) *cobra.Command {
 	cmd.Flags().StringVar(&cfg.GitLabSSHEndpoint, "ssh-endpoint", "", "GitLab SSH endpoint (e.g., ssh://git@host:22)")
 	cmd.Flags().StringVarP(&cfg.OutputFile, "output", "o", "", "输出结果到 YAML 文件")
 	cmd.Flags().StringVarP(&cfg.TemplateFile, "template", "t", "", "使用模板文件格式化输出")
+	cmd.Flags().StringVar(&cfg.NameSuffix, "suffix", "", "Custom suffix appended after millisecond timestamp in prefix mode")
 
 	return cmd
 }
@@ -145,8 +146,14 @@ func runUserCreate(cfg *config.CLIConfig) error {
 	}
 
 	log.Printf("\n找到 %d 个用户配置\n\n", len(userConfig.Users))
+	if cfg.NameSuffix != "" {
+		log.Printf("使用自定义后缀: %s\n", cfg.NameSuffix)
+	}
 
-	proc := &processor.ResourceProcessor{Client: gitlabClient}
+	proc := &processor.ResourceProcessor{
+		Client:     gitlabClient,
+		NameSuffix: cfg.NameSuffix,
+	}
 
 	// 收集所有用户的输出结果
 	var userOutputs []types.UserOutput

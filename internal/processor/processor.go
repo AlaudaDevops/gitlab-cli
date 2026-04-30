@@ -12,7 +12,10 @@ import (
 
 // ResourceProcessor 封装资源创建和删除的业务逻辑
 type ResourceProcessor struct {
+	// Client handles GitLab API interactions.
 	Client *client.GitLabClient
+	// NameSuffix optionally overrides the random suffix appended in prefix mode.
+	NameSuffix string
 }
 
 // ========================================
@@ -35,10 +38,10 @@ func (p *ResourceProcessor) ProcessUserCreation(userSpec types.UserSpec) (*types
 		actualEmail = userSpec.Email
 		log.Printf("  使用 name 模式（不添加时间戳）\n")
 	} else {
-		// prefix 模式：添加时间戳
-		actualUsername = utils.GenerateUsernameWithTimestamp(userSpec.Username)
-		actualEmail = utils.GenerateEmailWithTimestamp(userSpec.Email)
-		log.Printf("  使用 prefix 模式（添加时间戳）\n")
+		// prefix 模式：添加毫秒时间戳和后缀
+		actualUsername = utils.GenerateUsernameWithTimestamp(userSpec.Username, p.NameSuffix)
+		actualEmail = utils.GenerateEmailWithTimestamp(userSpec.Email, p.NameSuffix)
+		log.Printf("  使用 prefix 模式（添加毫秒时间戳+后缀）\n")
 	}
 
 	log.Printf("  用户名: %s\n", actualUsername)
@@ -103,8 +106,8 @@ func (p *ResourceProcessor) ProcessUserCreation(userSpec types.UserSpec) (*types
 
 // createPersonalAccessToken 为用户创建 Personal Access Token，返回 token 值和实际使用的过期时间
 func (p *ResourceProcessor) createPersonalAccessToken(userID int, username string, tokenSpec *types.TokenSpec) (string, string, error) {
-	// 生成 token 名称，格式: username-token-timestamp
-	tokenName := fmt.Sprintf("%s-token-%d", username, time.Now().Unix())
+	// 生成 token 名称，格式: username-token-<millisecond-timestamp>-<suffix>
+	tokenName := fmt.Sprintf("%s-token-%s", username, utils.GenerateTemporalSuffix(p.NameSuffix))
 
 	// 设置过期时间：如果未指定，默认为第2天
 	expiresAt := tokenSpec.ExpiresAt
@@ -207,9 +210,9 @@ func (p *ResourceProcessor) ensureGroup(username string, groupSpec types.GroupSp
 	} else {
 		// prefix 模式：添加时间戳
 		if groupSpec.Path == "" {
-			actualGroupPath = utils.GenerateGroupPathWithTimestamp(groupSpec.Name)
+			actualGroupPath = utils.GenerateGroupPathWithTimestamp(groupSpec.Name, p.NameSuffix)
 		} else {
-			actualGroupPath = utils.GenerateGroupPathWithTimestamp(groupSpec.Path)
+			actualGroupPath = utils.GenerateGroupPathWithTimestamp(groupSpec.Path, p.NameSuffix)
 		}
 		log.Printf("    使用 prefix 模式，生成组 path: %s\n", actualGroupPath)
 	}
@@ -267,9 +270,9 @@ func (p *ResourceProcessor) createUserProjectsWithOutput(username string, projec
 		} else {
 			// prefix 模式：添加时间戳
 			if projSpec.Path == "" {
-				actualProjectPath = utils.GenerateProjectPathWithTimestamp(projSpec.Name)
+				actualProjectPath = utils.GenerateProjectPathWithTimestamp(projSpec.Name, p.NameSuffix)
 			} else {
-				actualProjectPath = utils.GenerateProjectPathWithTimestamp(projSpec.Path)
+				actualProjectPath = utils.GenerateProjectPathWithTimestamp(projSpec.Path, p.NameSuffix)
 			}
 			log.Printf("    使用 prefix 模式，生成项目 path: %s\n", actualProjectPath)
 		}
@@ -341,9 +344,9 @@ func (p *ResourceProcessor) createProjectsWithOutput(username string, groupID in
 		} else {
 			// prefix 模式：添加时间戳
 			if projSpec.Path == "" {
-				actualProjectPath = utils.GenerateProjectPathWithTimestamp(projSpec.Name)
+				actualProjectPath = utils.GenerateProjectPathWithTimestamp(projSpec.Name, p.NameSuffix)
 			} else {
-				actualProjectPath = utils.GenerateProjectPathWithTimestamp(projSpec.Path)
+				actualProjectPath = utils.GenerateProjectPathWithTimestamp(projSpec.Path, p.NameSuffix)
 			}
 			log.Printf("      使用 prefix 模式，生成项目 path: %s\n", actualProjectPath)
 		}
