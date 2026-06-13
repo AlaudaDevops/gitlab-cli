@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -568,50 +569,107 @@ func parseGitLabSSHEndpoint(rawEndpoint string) (endpoint, host string, port int
 	return endpointBuilder, hostName, portNumber
 }
 
-// parseGitLabHostURL 从 GitLab Host URL 解析出 endpoint、scheme 和 host
+// parseGitLabHostURL 从 GitLab Host URL 解析出 endpoint、scheme、host 和 port。
+// 使用 net/url 解析，正确处理 IPv6 字面量（带方括号）的主机地址，例如
+// http://[2335::aa1:1415]:32336。返回的 host 为不带方括号、不带端口的裸主机名。
 func parseGitLabHostURL(gitlabHost string) (endpoint, scheme, host string, port int) {
-	// 默认值
-	scheme = "https"
-	port = 443
-	endpoint = gitlabHost
+	// trimmedHost stores the host string without surrounding whitespace or trailing slash.
+	trimmedHost := strings.TrimSuffix(strings.TrimSpace(gitlabHost), "/")
 
-	// 去除尾部斜杠
-	endpoint = strings.TrimSuffix(endpoint, "/")
-
-	// 检查是否包含 scheme
-	if strings.HasPrefix(endpoint, "http://") {
-		scheme = "http"
-		port = 80
-		host = strings.TrimPrefix(endpoint, "http://")
-	} else if strings.HasPrefix(endpoint, "https://") {
-		scheme = "https"
-		port = 443
-		host = strings.TrimPrefix(endpoint, "https://")
-	} else {
-		// 如果没有 scheme，则 host 就是原始的 endpoint
-		host = endpoint
+	// inputScheme records the scheme detected from the raw input prefix (if any). It is
+	// used both to normalize the value for url.Parse and as the fallback scheme when
+	// parsing fails, so a malformed "http://[::1" still reports scheme "http".
+	inputScheme := ""
+	if idx := strings.Index(trimmedHost, "://"); idx >= 0 {
+		inputScheme = trimmedHost[:idx]
 	}
 
-	// 检查 host 中是否包含端口号
-	if strings.Contains(host, ":") {
-		parts := strings.Split(host, ":")
-		if len(parts) == 2 {
-			host = parts[0]
-			// 尝试解析端口号
-			if parsedPort, err := strconv.Atoi(parts[1]); err == nil {
-				port = parsedPort
-			}
+	// normalizedHost ensures a scheme is present so url.Parse treats the value as a URL
+	// rather than an opaque path; default to https to preserve the previous behavior.
+	normalizedHost := trimmedHost
+	if inputScheme == "" {
+		// No scheme: the remainder is a bare host[:port][/path]. Split off any path first so
+		// the IPv6 detection below only inspects the host[:port] portion (otherwise the path
+		// leaks into the bracketing). A bare (unbracketed) IPv6 literal such as
+		// "2335::aa1:1415" would otherwise let url.Parse mistake the final ":1415" for a port;
+		// detect that via net.SplitHostPort's "too many colons" error, bracket the host so it
+		// is preserved as a single host with no port, then re-attach the path.
+		hostPort, pathPart := trimmedHost, ""
+		if slash := strings.Index(trimmedHost, "/"); slash >= 0 {
+			hostPort, pathPart = trimmedHost[:slash], trimmedHost[slash:]
+		}
+		if _, _, splitErr := net.SplitHostPort(hostPort); splitErr != nil &&
+			strings.Contains(splitErr.Error(), "too many colons") {
+			normalizedHost = "https://" + bracketIfIPv6(hostPort) + pathPart
+		} else {
+			normalizedHost = "https://" + trimmedHost
 		}
 	}
 
-	// 重新添加 scheme 构造完整的 endpoint
-	if (scheme == "http" && port == 80) || (scheme == "https" && port == 443) {
-		// 默认端口，不需要在 endpoint 中显示
-		endpoint = scheme + "://" + host
-	} else {
-		// 非默认端口，需要在 endpoint 中显示
-		endpoint = scheme + "://" + host + ":" + strconv.Itoa(port)
+	// parsedURL holds the parsed host URL. On parse failure fall back to a sane,
+	// non-corrupting result: keep the trimmed input as the endpoint unchanged, use the
+	// detected scheme (or https), and leave host empty rather than mangling the input.
+	parsedURL, err := url.Parse(normalizedHost)
+	if err != nil {
+		scheme = inputScheme
+		if scheme == "" {
+			scheme = "https"
+		}
+		port = 443
+		if scheme == "http" {
+			port = 80
+		}
+		host = ""
+		endpoint = trimmedHost
+		return endpoint, scheme, host, port
 	}
 
+	// scheme comes from the URL; default to https when the input had no scheme at all.
+	scheme = parsedURL.Scheme
+	if scheme == "" {
+		scheme = "https"
+	}
+
+	// host is the bare hostname; url.Hostname() strips IPv6 brackets, which is exactly
+	// what we want rendered into the YAML template (a bracketed scalar is invalid YAML).
+	host = parsedURL.Hostname()
+
+	// urlPath preserves any subpath (e.g. "/gitlab" for a GitLab instance served under a
+	// subpath); dropping it would change the effective endpoint.
+	urlPath := parsedURL.Path
+
+	// defaultPort selects the well-known port for the scheme when none is given explicitly.
+	defaultPort := 443
+	if scheme == "http" {
+		defaultPort = 80
+	}
+
+	// port uses the explicit URL port when present, otherwise the scheme default.
+	port = defaultPort
+	if parsedURL.Port() != "" {
+		if parsedPort, parseErr := strconv.Atoi(parsedURL.Port()); parseErr == nil {
+			port = parsedPort
+		}
+	}
+
+	// Rebuild the endpoint: omit the port when it is the scheme default, otherwise include
+	// it. net.JoinHostPort re-adds IPv6 brackets so the endpoint stays a valid URL. The
+	// preserved path is appended last so subpath GitLab endpoints survive the round-trip.
+	if port == defaultPort {
+		endpoint = scheme + "://" + bracketIfIPv6(host)
+	} else {
+		endpoint = scheme + "://" + net.JoinHostPort(host, strconv.Itoa(port))
+	}
+	endpoint += urlPath
+
 	return endpoint, scheme, host, port
+}
+
+// bracketIfIPv6 wraps an IPv6 literal host in square brackets so it is valid inside a URL.
+// IPv6 hosts contain colons; IPv4 and DNS names never do.
+func bracketIfIPv6(host string) string {
+	if strings.Contains(host, ":") {
+		return "[" + host + "]"
+	}
+	return host
 }
